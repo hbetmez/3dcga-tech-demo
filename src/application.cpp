@@ -133,7 +133,7 @@ public:
     // If the mouse is moved this function will be called with the x, y screen-coordinates of the mouse
     void onMouseMove(const glm::dvec2& cursorPos)
     {
-        std::cout << "Mouse at position: " << cursorPos.x << " " << cursorPos.y << std::endl;
+        // logic for moving the mouse around with left and right click
     }
 
     // If one of the mouse buttons is pressed this function will be called
