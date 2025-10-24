@@ -11,6 +11,7 @@ GPUMaterial::GPUMaterial(const Material& material) :
     ks(material.ks),
     shininess(material.shininess),
     transparency(material.transparency)
+    //texturePath(material.kdTexturePath)
 {}
 
 GPUMesh::GPUMesh(const Mesh& cpuMesh)
@@ -22,7 +23,8 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     glBufferData(GL_UNIFORM_BUFFER, sizeof(GPUMaterial), &gpuMaterial, GL_STATIC_READ);
 
     // Figure out if this mesh has texture coordinates
-    m_hasTextureCoords = static_cast<bool>(cpuMesh.material.kdTexture);
+    m_hasTextureCoords = static_cast<bool>(cpuMesh.material.kdTexturePath.empty() == false) ;
+    if (m_hasTextureCoords) m_texturePath = cpuMesh.material.kdTexturePath;
 
     // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
     glGenVertexArrays(1, &m_vao);
@@ -79,7 +81,7 @@ std::vector<GPUMesh> GPUMesh::loadMeshGPU(std::filesystem::path filePath, bool n
     std::vector<Mesh> subMeshes = loadMesh(filePath, { .normalizeVertexPositions = normalize });
     std::vector<GPUMesh> gpuMeshes;
     for (const Mesh& mesh : subMeshes) { gpuMeshes.emplace_back(mesh); }
-    
+
     return gpuMeshes;
 }
 
@@ -93,7 +95,7 @@ void GPUMesh::draw(const Shader& drawingShader)
     // Bind material data uniform (we assume that the uniform buffer objects is always called 'Material')
     // Yes, we could define the binding inside the shader itself, but that would break on OpenGL versions below 4.2
     drawingShader.bindUniformBlock("Material", 0, m_uboMaterial);
-    
+
     // Draw the mesh's triangles
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, m_numIndices, GL_UNSIGNED_INT, nullptr);

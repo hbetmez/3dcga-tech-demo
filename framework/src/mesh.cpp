@@ -131,7 +131,8 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 const auto& objMaterial = inMaterials[materialID];
                 mesh.material.kd = construct_vec3(objMaterial.diffuse);
                 if (!objMaterial.diffuse_texname.empty()) {
-                    mesh.material.kdTexture = std::make_shared<Image>(baseDir / objMaterial.diffuse_texname);
+                    //mesh.material.kdTexture = std::make_shared<Image>(baseDir / objMaterial.diffuse_texname);
+                    mesh.material.kdTexturePath = baseDir / objMaterial.diffuse_texname; 
                 }
                 mesh.material.ks = construct_vec3(objMaterial.specular);
                 mesh.material.shininess = objMaterial.shininess;

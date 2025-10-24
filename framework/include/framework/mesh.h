@@ -10,6 +10,7 @@ DISABLE_WARNINGS_POP()
 #include <optional>
 #include <span>
 #include <vector>
+#include <filesystem>
 
 struct Vertex {
 	glm::vec3 position;
@@ -30,7 +31,8 @@ struct Material {
 	// if (material.kdTexture) {
 	//   material.kdTexture->getTexel(...);
 	// }
-	std::shared_ptr<Image> kdTexture;
+	//std::shared_ptr<Image> kdTexture;
+	std::filesystem::path kdTexturePath;
 };
 
 struct Mesh {

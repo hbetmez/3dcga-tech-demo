@@ -20,12 +20,14 @@ DISABLE_WARNINGS_POP()
 #include <functional>
 #include <iostream>
 #include <vector>
+#include <framework/trackball.h>
+#include <map>
 
 class Application {
 public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41)
-        , m_texture(RESOURCE_ROOT "resources/checkerboard.png")
+        , m_defaultTexture(RESOURCE_ROOT "resources/checkerboard.png")
     {
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
             if (action == GLFW_PRESS)
@@ -41,7 +43,26 @@ public:
                 onMouseReleased(button, mods);
         });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
+
+        //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
+        //std::cout << "Loaded cpu meshes" << std::endl;
+        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/astronaut.obj");
+
+        for (size_t i = 0; i < m_meshes.size(); ++i) {
+            const GPUMesh& mesh = m_meshes[i];
+            std::filesystem::path texPath = mesh.m_texturePath;
+
+            ////add textures to map, then use those
+            if (!texPath.empty()) {
+                // Check if we've already loaded this texture
+                if (texturesMap.find(texPath.string()) == texturesMap.end()) {
+                    // not found, put it to map
+                    texturesMap.insert({ texPath, Texture(RESOURCE_ROOT / texPath) });
+                }
+                //else dont do anything because we already have the texture in the map
+            }
+            // if there is no texture associated skip it
+        }
 
         try {
             ShaderBuilder defaultBuilder;
@@ -77,6 +98,7 @@ public:
             ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
             ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
             ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+			ImGui::Checkbox("Use Mouse Controls", &m_useMouseControls);
             ImGui::End();
 
             // Clear the screen
@@ -86,29 +108,50 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
-            const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
+			/// use trackball logic to get view and projection matrices based on mouse input
+            glm::mat4 projectionMatrix = m_projectionMatrix;
+            glm::mat4 viewMatrix = m_viewMatrix;
+            if (m_useMouseControls) {
+                projectionMatrix = m_trackball.projectionMatrix();
+                viewMatrix = m_trackball.viewMatrix();
+            }
+            const glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
             glm::vec3 lightPos(1.0f, 1.0f, 0.0f);
 
-            for (GPUMesh& mesh : m_meshes) {
+            for (size_t i = 0; i < m_meshes.size(); ++i) {
+                GPUMesh& mesh = m_meshes[i];
                 m_defaultShader.bind();
+
                 glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
                 //Uncomment this line when you use the modelMatrix (or fragmentPosition)
                 //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
                 if (mesh.hasTextureCoords()) {
-                    m_texture.bind(GL_TEXTURE0);
+                    std::filesystem::path texPath = mesh.m_texturePath;
+
+                    if (!texPath.empty() && texturesMap.find(texPath) != texturesMap.end()) {
+                        // use the texture that came with the cpu mesh
+                        texturesMap.at(texPath).bind(GL_TEXTURE0);
+                    }
+					else {
+						// use the default texture if that is not found
+						m_defaultTexture.bind(GL_TEXTURE0);
+					}
+
                     glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
                     glUniform1i(m_defaultShader.getUniformLocation("lightPos"), GL_FALSE);
 
                 } else {
+					// if no texture, use material color
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
                 }
                 mesh.draw(m_defaultShader);
             }
@@ -123,7 +166,7 @@ public:
     // mods - Any modifier keys pressed, like shift or control
     void onKeyPressed(int key, int mods)
     {
-        std::cout << "Key pressed: " << key << std::endl;
+        //std::cout << "Key pressed: " << key << std::endl;
     }
 
     // In here you can handle key releases
@@ -131,21 +174,21 @@ public:
     // mods - Any modifier keys pressed, like shift or control
     void onKeyReleased(int key, int mods)
     {
-        std::cout << "Key released: " << key << std::endl;
+        //std::cout << "Key released: " << key << std::endl;
     }
 
     // If the mouse is moved this function will be called with the x, y screen-coordinates of the mouse
     void onMouseMove(const glm::dvec2& cursorPos)
     {
-        std::cout << "Mouse at position: " << cursorPos.x << " " << cursorPos.y << std::endl;
+        //std::cout << "Mouse at position: " << cursorPos.x << " " << cursorPos.y << std::endl;
     }
-
+        
     // If one of the mouse buttons is pressed this function will be called
     // button - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__buttons.html
     // mods - Any modifier buttons pressed
     void onMouseClicked(int button, int mods)
     {
-        std::cout << "Pressed mouse button: " << button << std::endl;
+        //std::cout << "Pressed mouse button: " << button << std::endl;
     }
 
     // If one of the mouse buttons is released this function will be called
@@ -153,7 +196,7 @@ public:
     // mods - Any modifier buttons pressed
     void onMouseReleased(int button, int mods)
     {
-        std::cout << "Released mouse button: " << button << std::endl;
+        //std::cout << "Released mouse button: " << button << std::endl;
     }
 
 private:
@@ -164,10 +207,15 @@ private:
     Shader m_shadowShader;
 
     std::vector<GPUMesh> m_meshes;
-    Texture m_texture;
-    bool m_useMaterial { true };
+    Texture m_defaultTexture;
+    std::map<std::filesystem::path, Texture> texturesMap;
+	bool m_useMaterial{ true };
+    bool m_useMouseControls{ false };
 
     // Projection and view matrices for you to fill in and use
+    //glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
+    //glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
+    Trackball m_trackball{ &m_window, glm::radians(80.0f), glm::vec3(0.0f) }; // window, fov and look direction
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix { 1.0f };
