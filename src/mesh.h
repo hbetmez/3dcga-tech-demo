@@ -23,6 +23,9 @@ struct GPUMaterial {
 	alignas(16) glm::vec3 ks{ 0.0f };
 	float shininess{ 1.0f };
 	float transparency{ 1.0f };
+
+    ////gpu mesh will have a texture
+    //std::filesystem::path texturePath;
 };
 
 class GPUMesh {
@@ -42,7 +45,8 @@ public:
     GPUMesh& operator=(GPUMesh&&);
 
     bool hasTextureCoords() const;
-
+    // getter for texture path
+    std::filesystem::path m_texturePath;
     // Bind VAO and call glDrawElements.
     void draw(const Shader& drawingShader);
 
