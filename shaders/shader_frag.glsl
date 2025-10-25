@@ -26,9 +26,16 @@ void main()
     float strength = max(dot(normalize(fragNormal), lightDir), 0.0);
     
     vec3 lightColor = vec3(1.0);
-    vec3 surfaceColor = kd * lightColor * strength;
+    vec3 newKd;
+    if(hasTexCoords) {
+        newKd = texture(colorMap, fragTexCoord).rgb;
+    }
+    else {
+        newKd = kd;
+    }
+    vec3 surfaceColor = newKd * lightColor * strength;
 
-    if (hasTexCoords)       { fragColor = vec4(texture(colorMap, fragTexCoord).rgb, 1);}
-    else if (useMaterial)   { fragColor = vec4(kd, 1);}
-    else                    { fragColor = vec4(surfaceColor, 1); } // Output color value, change from (1, 0, 0) to something else
+    if (hasTexCoords)       { fragColor = vec4(surfaceColor, 1);}
+    else if (useMaterial)   { fragColor = vec4(surfaceColor, 1);}
+    else                    { fragColor = vec4(normal, 1); } // Output color value, change from (1, 0, 0) to something else
 }

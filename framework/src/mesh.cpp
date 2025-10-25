@@ -106,8 +106,14 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                         vertex.normal = glm::vec3(inAttrib.normals[3 * tinyObjIndex.normal_index + 0], inAttrib.normals[3 * tinyObjIndex.normal_index + 1], inAttrib.normals[3 * tinyObjIndex.normal_index + 2]);
                     else
                         vertex.normal = geometricNormal;
+                    //if (tinyObjIndex.texcoord_index != -1 && !inAttrib.texcoords.empty())
+                    //    vertex.texCoord = glm::vec2(inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 0], inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 1]);
+                    /// REPLACE THE ABOVE IF STATEMENT WITH BELOW, BECAUSE OBJ FILES USE BOTTOM LEFT AS ORIGIN
                     if (tinyObjIndex.texcoord_index != -1 && !inAttrib.texcoords.empty())
-                        vertex.texCoord = glm::vec2(inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 0], inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 1]);
+                        vertex.texCoord = glm::vec2(
+                            inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 0],
+                            1.0f - inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 1] // we flip the y coordinate
+                        );
 
                     const CacheKey cacheKey { tinyObjIndex.vertex_index, tinyObjIndex.normal_index, tinyObjIndex.texcoord_index };
                     if (auto iter = vertexCache.find(cacheKey); settings.cacheVertices && iter != std::end(vertexCache)) {

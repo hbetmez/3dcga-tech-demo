@@ -46,23 +46,30 @@ public:
 
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/astronaut.obj");
+        std::filesystem::path fileName{ "robo" };
+        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileName / (fileName.string() + ".obj"));
+
+        std::cout << "Meshes: " << m_meshes.size() << std::endl;
 
         for (size_t i = 0; i < m_meshes.size(); ++i) {
             const GPUMesh& mesh = m_meshes[i];
             std::filesystem::path texPath = mesh.m_texturePath;
+            std::cout << "Textrue name: " << texPath << std::endl;
 
             ////add textures to map, then use those
             if (!texPath.empty()) {
                 // Check if we've already loaded this texture
                 if (texturesMap.find(texPath.string()) == texturesMap.end()) {
                     // not found, put it to map
-                    texturesMap.insert({ texPath, Texture(RESOURCE_ROOT / texPath) });
+                    texturesMap.insert({ texPath, Texture(RESOURCE_ROOT / fileName / texPath) });
                 }
                 //else dont do anything because we already have the texture in the map
             }
             // if there is no texture associated skip it
         }
+
+        std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
+
 
         try {
             ShaderBuilder defaultBuilder;
@@ -120,7 +127,7 @@ public:
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
-            glm::vec3 lightPos(1.0f, 1.0f, 0.0f);
+            glm::vec3 lightPos(1.0f, 1.0f, 1.0f);
 
             for (size_t i = 0; i < m_meshes.size(); ++i) {
                 GPUMesh& mesh = m_meshes[i];
@@ -145,7 +152,7 @@ public:
                     glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("lightPos"), GL_FALSE);
+                    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
 
                 } else {
 					// if no texture, use material color
