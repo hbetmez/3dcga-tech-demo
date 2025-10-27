@@ -26,6 +26,9 @@ struct Material {
 	float shininess{ 1.0f };
 	float transparency{ 1.0f };
 
+	float roughness{ 1.0f };
+	float metallic{ 1.0f };
+
 	// Optional texture that replaces kd; use as follows:
 	// 
 	// if (material.kdTexture) {
@@ -33,6 +36,8 @@ struct Material {
 	// }
 	//std::shared_ptr<Image> kdTexture;
 	std::filesystem::path kdTexturePath;
+	std::filesystem::path metallicTexturePath;
+	std::filesystem::path roughnessTexturePath;
 };
 
 struct Mesh {

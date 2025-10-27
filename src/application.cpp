@@ -154,11 +154,23 @@ public:
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
                     glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
 
+                    //temporary: NEXT TODO: MAKE TEXTURE MAPS FOR ROUGHNESS AND METALLIC
+                    glUniform1i(m_defaultShader.getUniformLocation("useSimpleShading"), GL_FALSE);
+                    glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), GL_TRUE);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE);
+
                 } else {
 					// if no texture, use material color
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
                     glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
+
+                    //temporary
+                    glUniform1i(m_defaultShader.getUniformLocation("useSimpleShading"), GL_FALSE);
+                    glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), GL_TRUE);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE);
                 }
                 mesh.draw(m_defaultShader);
             }
