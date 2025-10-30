@@ -54,6 +54,13 @@ public:
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
+            // Line Shader for Curve
+            ShaderBuilder lineBuilder;
+            lineBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/line_vert.glsl");
+            lineBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/line_frag.glsl");
+            m_lineShader = lineBuilder.build();
+
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -62,12 +69,35 @@ public:
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
         }
+
+        // Curve Visualization
+        ///////////////////////// start
+        for (int i = 0; i < 3; ++i) {
+            int base = i * 3;
+            for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
+                m_curvePoints.push_back(cubicBezier(
+                    m_curveControlPoints[base], m_curveControlPoints[base + 1],
+                    m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], t));
+            }
+        }
+
+        glGenVertexArrays(1, &m_curveVAO);
+        glBindVertexArray(m_curveVAO);
+
+        glGenBuffers(1, &m_curveVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_curveVBO);
+        glBufferData(GL_ARRAY_BUFFER, m_curvePoints.size() * sizeof(glm::vec3), m_curvePoints.data(), GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+        glBindVertexArray(0);
+        ///////////////////////// end
     }
 
     glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
         const glm::vec3& p2, const glm::vec3& p3, float t)
     {
-        glm::vec point = (1.0f - t) * (1.0f - t) * (1.0f - t) * p0;
+        glm::vec3 point = (1.0f - t) * (1.0f - t) * (1.0f - t) * p0;
         point += 3 * (1.0f - t) * (1.0f - t) * t * p1;
         point += 3 * (1.0f - t) * t * t * p2;
         point += t * t * t * p3;
@@ -78,7 +108,7 @@ public:
         const glm::vec3& p2, const glm::vec3& p3, float t)
     {
         // It is just derivative of the bezier curve.
-        glm::vec point = 3.0f * (1.0f - t) * (1.0f - t) * (p1 - p0) + 6.0f * (1.0f - t) * t * (p2 - p1) + 3.0f * t * t * (p3 - p2);
+        glm::vec3 point = 3.0f * (1.0f - t) * (1.0f - t) * (p1 - p0) + 6.0f * (1.0f - t) * t * (p2 - p1) + 3.0f * t * t * (p3 - p2);
         return point;
     }
 
@@ -121,6 +151,12 @@ public:
             ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
             ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
             ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+
+            // Drawing bezier curve
+            ImGui::Checkbox("Show Camera Path", &m_showCurve);
+            ImGui::Checkbox("Move Camera Along Path", &m_moveAlongCurve);
+               
+            
             ImGui::End();
 
             // Clear the screen
@@ -136,7 +172,10 @@ public:
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
             // Camera Movement:
-            updateCameraAlongPath(glfwGetTime());
+            if (m_moveAlongCurve) {
+                updateCameraAlongPath(glfwGetTime());
+            }
+            
 
             for (GPUMesh& mesh : m_meshes) {
                 m_defaultShader.bind();
@@ -155,6 +194,19 @@ public:
                 }
                 mesh.draw(m_defaultShader);
             }
+
+            // Showing the Curve
+            if (m_showCurve) {
+                m_lineShader.bind();
+                glm::mat4 mvp = m_projectionMatrix * m_viewMatrix * glm::mat4(1.0f);
+                glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+                glBindVertexArray(m_curveVAO);
+                glLineWidth(2.0f);
+                glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
+                glBindVertexArray(0);
+            }
+
 
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
@@ -214,6 +266,8 @@ private:
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix { 1.0f };
+
+    // Curve instances
     std::vector<glm::vec3> m_curveControlPoints = 
     {
         {0, 1, 5},   // curve 1 p0 
@@ -227,7 +281,13 @@ private:
         {24, 3, 5},   // curve 3 p2 
         {27, 1, 2}    // curve 3 p3 
     };
-    bool m_showCurve = true;    
+    bool m_showCurve = true;
+    bool m_moveAlongCurve = true;
+    Shader m_lineShader;
+    GLuint m_curveVAO = 0, m_curveVBO = 0;
+    std::vector<glm::vec3> m_curvePoints;
+
+    glm::mat4 m_lastViewMatrix = m_viewMatrix;
 };
 
 int main()
