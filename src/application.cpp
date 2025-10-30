@@ -64,6 +64,50 @@ public:
         }
     }
 
+    glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        glm::vec point = (1.0f - t) * (1.0f - t) * (1.0f - t) * p0;
+        point += 3 * (1.0f - t) * (1.0f - t) * t * p1;
+        point += 3 * (1.0f - t) * t * t * p2;
+        point += t * t * t * p3;
+        return point;
+    }
+
+    glm::vec3 cubicBezierTangent(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        // It is just derivative of the bezier curve.
+        glm::vec point = 3.0f * (1.0f - t) * (1.0f - t) * (p1 - p0) + 6.0f * (1.0f - t) * t * (p2 - p1) + 3.0f * t * t * (p3 - p2);
+        return point;
+    }
+
+    void updateCameraAlongPath(float time) {
+        int numberOfCurves = 3;
+        float t = fmod(time * 0.1f, 1.0f); // remainder
+        float curveLength = 1.0f / numberOfCurves; // [0,1/3] is first segment, [1/3,2/3] second segment...
+        int curveIndex = std::min(int(t / curveLength), numberOfCurves - 1);
+        float localT = (t - (curveIndex * curveLength)) / curveLength;
+
+        float firstControlPoint = curveIndex * 3;
+        glm::vec3 pos = cubicBezier(m_curveControlPoints[firstControlPoint],
+            m_curveControlPoints[firstControlPoint + 1],
+            m_curveControlPoints[firstControlPoint + 2],
+            m_curveControlPoints[firstControlPoint + 3],
+            localT);
+        glm::vec3 tangent = glm::normalize(cubicBezierTangent(
+            m_curveControlPoints[firstControlPoint],
+            m_curveControlPoints[firstControlPoint + 1],
+            m_curveControlPoints[firstControlPoint + 2],
+            m_curveControlPoints[firstControlPoint + 3], localT));
+
+            glm::vec3 up = glm::vec3(0, 1, 0);
+            glm::vec3 right = glm::normalize(glm::cross(tangent, up));
+            up = glm::cross(right, tangent); // making sure all 3 are perpendicular to each other.
+            m_viewMatrix = glm::lookAt(pos, pos + tangent, up);
+
+    }
+
     void update()
     {
         int dummyInteger = 0; // Initialized to 0
@@ -90,6 +134,9 @@ public:
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+
+            // Camera Movement:
+            updateCameraAlongPath(glfwGetTime());
 
             for (GPUMesh& mesh : m_meshes) {
                 m_defaultShader.bind();
@@ -167,6 +214,20 @@ private:
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix { 1.0f };
+    std::vector<glm::vec3> m_curveControlPoints = 
+    {
+        {0, 1, 5},   // curve 1 p0 
+        {3, 3, 3},   // curve 1 p1 
+        {6, 3, 0},   // curve 1 p2 
+        {9, 1, -2},  // curve 1 p3, curve 2 p0 
+        {12, -1, -1}, // curve 2 p1 
+        {15, -2, 2},  // curve 2 p2 
+        {18, 0, 5},   // curve 2 p3, curve 3 p0 
+        {21, 2, 7},   // curve 3 p1 
+        {24, 3, 5},   // curve 3 p2 
+        {27, 1, 2}    // curve 3 p3 
+    };
+    bool m_showCurve = true;    
 };
 
 int main()
