@@ -28,6 +28,7 @@ struct Material {
 
 	float roughness{ 1.0f };
 	float metallic{ 1.0f };
+	float ior{ 0.04f };
 
 	// Optional texture that replaces kd; use as follows:
 	// 

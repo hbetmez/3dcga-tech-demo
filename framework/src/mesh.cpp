@@ -146,6 +146,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 //basecolor = kd already known
                 mesh.material.roughness = objMaterial.roughness;
                 mesh.material.metallic = objMaterial.metallic;
+                mesh.material.ior = objMaterial.ior; // Ni in .mtl
                 // F0 calculated from metallic
 
                 if (!objMaterial.diffuse_texname.empty()) {

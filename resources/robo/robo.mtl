@@ -18,4 +18,5 @@ newmtl robo
 	map_Pm robo_metalness.tga
 	map_Pr robo_roughness.tga
 	map_bump robo_normal.tga
+	norm robo_normal.tga
 	bump robo_normal.tga

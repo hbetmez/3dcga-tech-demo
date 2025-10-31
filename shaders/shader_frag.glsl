@@ -8,6 +8,7 @@ layout(std140) uniform Material // Must match the GPUMaterial defined in src/mes
 	float transparency;
     float roughness;
     float metallic;
+    float ior;
 };
 
 uniform sampler2D colorMap;
@@ -63,6 +64,7 @@ void main()
     vec3 H = normalize(L + V);
     
     vec3 lightColor = vec3(1.0);
+    float pi = 3.14159265359;
     
     // Sample textures
     vec3 baseColor;
@@ -112,42 +114,45 @@ void main()
         finalColor = diffuse + specular;
         
     } else {
-        // PBR Shading (Cook-Torrance)
+        // === PBR Shading GGX/Smith ===
         
         float NdotL = max(dot(N, L), 0.0);
         float NdotV = max(dot(N, V), 0.0);
         float NdotH = max(dot(N, H), 0.0);
         float VdotH = max(dot(V, H), 0.0);
-                
-        // Calculate F0 (fresnel reflectance at normal incidence)
-        vec3 F0 = mix(vec3(0.04), baseColor, metal);
-        
-        // Normal distribution function GGX: DGGX(m)=?^2/(pi((n.m)2(?^2?1)+1)^2)
-
+                        
+        // Normal distribution function GGX: DGGX(m) eqn 33 in walter et al.
+        float chi = (rough > 0.0) ? 1.0 : 0.0;
         float alpha = rough * rough;
         float alpha2 = alpha * alpha;
-        float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        float D = alpha2 / (3.14159265359 * denom * denom);
+        float cosTheta2 = NdotH * NdotH;
+        float cosTheta4 = cosTheta2 * cosTheta2;
+        float tanTheta2 = (1 - cosTheta2) / cosTheta2;
+        float aPlusTan = alpha2 + tanTheta2;
+
+        float D = (alpha2 * chi * NdotH) / (pi * cosTheta4 * aPlusTan * aPlusTan);
         
-        // Geometric shadowing GGX: GGGX(v)=2(n.v) / (n.v)+?2+(1??2)(n?v)
-        float k = alpha / 2.0;
-        float G_V = NdotV / (NdotV * (1.0 - k) + k);
-        float G_L = NdotL / (NdotL * (1.0 - k) + k);
-        float G = G_V * G_L;
+        // Geometric shadowing GGX: GGGX(v) eqn 34 in walter et al.
+        float vm_over_vn = VdotH / NdotV;
+        float cosThetaV2 = NdotV * NdotV;
+        float tanThetaV2 = (1 - cosThetaV2) / cosThetaV2;
+
+        float denom = 1 + sqrt(1 + (alpha2 * tanThetaV2));
+        float G = chi * vm_over_vn * (2 / denom);
         
-        // ===== Fresnel (Schlick) =====
-        vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+        // Fresnel
+        // Calculate F0 (fresnel reflectance at normal incidence)
+        //vec3 F0 = mix(vec3(0.04), baseColor, metal);
+        float n = ior;
+        float sqrtF0 = (1 - n) / (1 + n);
+        vec3 F0 = vec3(sqrtF0 * sqrtF0); // or use mix function? what to do for metals?
+
+        vec3 F = F0 + (1.0 - F0) * pow(1.0 - NdotL, 5.0); //NdotL is already clamped
         
-        // ===== Cook-Torrance BRDF =====
-        vec3 specular = (D * G * F) / max(4.0 * NdotL * NdotV, 0.001);
+        // Overall GGX/Smith 
+        vec3 fr = (D * G * F) / max(4.0 * NdotL * NdotV, 0.001); //avoid div by zero
         
-        // ===== Diffuse (Lambertian) =====
-        vec3 kS = F; // Fresnel tells us the specular contribution
-        vec3 kD = (1.0 - kS) * (1.0 - metal); // Metals have no diffuse
-        vec3 diffuse = kD * baseColor / 3.14159265359;
-        
-        // ===== Final Color =====
-        finalColor = (diffuse + specular) * lightColor * NdotL;
+        finalColor = fr;
         
     }
     

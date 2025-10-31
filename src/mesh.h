@@ -26,6 +26,7 @@ struct GPUMaterial {
 
     float roughness{ 1.0f };
     float metallic{ 1.0f };
+    float ior{ 0.04f };
     // the textures are loaded in program and applied there
 };
 
