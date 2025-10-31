@@ -41,7 +41,8 @@ public:
         }
     }
 
-    uint8_t* get_data() {
+    //made this return const so that the texture constructor with Image works
+    const uint8_t* get_data() const {
         return pixels.data();
     }
 
