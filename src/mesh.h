@@ -24,8 +24,10 @@ struct GPUMaterial {
 	float shininess{ 1.0f };
 	float transparency{ 1.0f };
 
-    ////gpu mesh will have a texture
-    //std::filesystem::path texturePath;
+    float roughness{ 1.0f };
+    float metallic{ 1.0f };
+    float ior{ 0.04f };
+    // the textures are loaded in program and applied there
 };
 
 class GPUMesh {
@@ -45,8 +47,19 @@ public:
     GPUMesh& operator=(GPUMesh&&);
 
     bool hasTextureCoords() const;
-    // getter for texture path
+    bool hasRoughnessCoords() const;
+    bool hasMetallicCoords() const;
+    bool hasNormalCoords() const;
+    bool hasBumpCoords() const;
+
+    // getter for texture paths
     std::filesystem::path m_texturePath;
+    std::filesystem::path m_roughnessTexturePath;
+    std::filesystem::path m_metallicTexturePath;
+
+    std::filesystem::path m_normalTexturePath;
+    std::filesystem::path m_bumpTexturePath;
+
     // Bind VAO and call glDrawElements.
     void draw(const Shader& drawingShader);
 
@@ -59,6 +72,10 @@ private:
 
     GLsizei m_numIndices { 0 };
     bool m_hasTextureCoords { false };
+    bool m_hasRoughnessCoords{ false };
+    bool m_hasMetallicCoords{ false };
+    bool m_hasNormalCoords{ false };
+    bool m_hasBumpCoords{ false };
     GLuint m_ibo { INVALID };
     GLuint m_vbo { INVALID };
     GLuint m_vao { INVALID };

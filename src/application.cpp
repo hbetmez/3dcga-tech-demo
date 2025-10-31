@@ -46,30 +46,12 @@ public:
 
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        std::filesystem::path fileName{ "robo" };
+        std::filesystem::path fileName{ "robo" }; //.obj and .mtl name should be same as folder name
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileName / (fileName.string() + ".obj"));
 
         std::cout << "Meshes: " << m_meshes.size() << std::endl;
 
-        for (size_t i = 0; i < m_meshes.size(); ++i) {
-            const GPUMesh& mesh = m_meshes[i];
-            std::filesystem::path texPath = mesh.m_texturePath;
-            std::cout << "Textrue name: " << texPath << std::endl;
-
-            ////add textures to map, then use those
-            if (!texPath.empty()) {
-                // Check if we've already loaded this texture
-                if (texturesMap.find(texPath.string()) == texturesMap.end()) {
-                    // not found, put it to map
-                    texturesMap.insert({ texPath, Texture(RESOURCE_ROOT / fileName / texPath) });
-                }
-                //else dont do anything because we already have the texture in the map
-            }
-            // if there is no texture associated skip it
-        }
-
-        std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
-
+        loadAllTextures(fileName);
 
         try {
             ShaderBuilder defaultBuilder;
@@ -104,7 +86,8 @@ public:
             ImGui::Begin("Window");
             ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
             ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
-            ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+            ImGui::Checkbox("Material", &m_useMaterial);
+            ImGui::Checkbox("PBR Shading", &m_usePBR);
 			ImGui::Checkbox("Use Mouse Controls", &m_useMouseControls);
             ImGui::End();
 
@@ -137,29 +120,47 @@ public:
                 //Uncomment this line when you use the modelMatrix (or fragmentPosition)
                 //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
-                if (mesh.hasTextureCoords()) {
-                    std::filesystem::path texPath = mesh.m_texturePath;
 
-                    if (!texPath.empty() && texturesMap.find(texPath) != texturesMap.end()) {
-                        // use the texture that came with the cpu mesh
-                        texturesMap.at(texPath).bind(GL_TEXTURE0);
-                    }
-					else {
-						// use the default texture if that is not found
-						m_defaultTexture.bind(GL_TEXTURE0);
-					}
+                // get all the textures from the map if the mesh has them
+                std::filesystem::path kdTexPath;
+                std::filesystem::path roughnessTexPath;
+                std::filesystem::path metallicTexPath;
+                std::filesystem::path normalTexPath;
+                std::filesystem::path bumpTexPath;
 
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
+                if (mesh.hasTextureCoords() && !mesh.m_texturePath.empty() && texturesMap.find(mesh.m_texturePath) != texturesMap.end())
+                    kdTexPath = mesh.m_texturePath;
+                if (mesh.hasRoughnessCoords() && !mesh.m_roughnessTexturePath.empty() && texturesMap.find(mesh.m_roughnessTexturePath) != texturesMap.end())
+                    roughnessTexPath = mesh.m_roughnessTexturePath;
+                if (mesh.hasRoughnessCoords() && !mesh.m_metallicTexturePath.empty() && texturesMap.find(mesh.m_metallicTexturePath) != texturesMap.end())
+                    metallicTexPath = mesh.m_metallicTexturePath;
+                if (mesh.hasNormalCoords() && !mesh.m_normalTexturePath.empty() && texturesMap.find(mesh.m_normalTexturePath) != texturesMap.end())
+                    normalTexPath = mesh.m_normalTexturePath;
+                if (mesh.hasNormalCoords() && !mesh.m_bumpTexturePath.empty() && texturesMap.find(mesh.m_bumpTexturePath) != texturesMap.end())
+                    bumpTexPath = mesh.m_bumpTexturePath;
 
-                } else {
-					// if no texture, use material color
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
-                }
+                if (!kdTexPath.empty()) { texturesMap.at(kdTexPath).bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE); }
+                else { m_defaultTexture.bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE); }
+
+                if (!roughnessTexPath.empty()) { texturesMap.at(roughnessTexPath).bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_TRUE); }
+                else { m_defaultTexture.bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE); }
+
+                if (!metallicTexPath.empty()) { texturesMap.at(metallicTexPath).bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_TRUE); }
+                else { m_defaultTexture.bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE); }
+
+                if (!normalTexPath.empty()) { texturesMap.at(normalTexPath).bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_TRUE); }
+                else { m_defaultTexture.bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_FALSE); }
+
+                if (!bumpTexPath.empty()) { texturesMap.at(bumpTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_TRUE); }
+                else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_FALSE); }                // -- now we have all textures --
+
+                glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+                glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
+                glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
+                glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
+
+                //temporary: NEXT TODO: MAKE TEXTURE MAPS FOR ROUGHNESS AND METALLIC
                 mesh.draw(m_defaultShader);
             }
 
@@ -206,6 +207,49 @@ public:
         //std::cout << "Released mouse button: " << button << std::endl;
     }
 
+    void loadAllTextures(const std::filesystem::path& fileName) {
+        for (size_t i = 0; i < m_meshes.size(); ++i) {
+            const GPUMesh& mesh = m_meshes[i];
+            std::filesystem::path kdTexPath = mesh.m_texturePath;
+            std::filesystem::path roughnessTexPath = mesh.m_roughnessTexturePath;
+            std::filesystem::path metallicTexPath = mesh.m_metallicTexturePath;
+            std::filesystem::path normalTexPath = mesh.m_normalTexturePath;
+            std::filesystem::path bumpTexPath = mesh.m_bumpTexturePath;
+
+            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << bumpTexPath << std::endl;
+
+            ////add textures to map, then use those
+            if (!kdTexPath.empty()) {
+                // Check if we've already loaded this texture
+                if (texturesMap.find(kdTexPath.string()) == texturesMap.end()) {
+                    // not found, put it to map
+                    texturesMap.insert({ kdTexPath, Texture(RESOURCE_ROOT / fileName / kdTexPath) });
+                }
+                //else dont do anything because we already have the texture in the map
+            }
+            // if there is no texture associated skip it
+
+            if (!roughnessTexPath.empty() && texturesMap.find(roughnessTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ roughnessTexPath, Texture(RESOURCE_ROOT / fileName / roughnessTexPath) });
+            }
+
+            if (!metallicTexPath.empty() && texturesMap.find(metallicTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ metallicTexPath, Texture(RESOURCE_ROOT / fileName / metallicTexPath) });
+            }
+
+            if (!normalTexPath.empty() && texturesMap.find(normalTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ normalTexPath, Texture(RESOURCE_ROOT / fileName / normalTexPath) });
+            }
+
+            if (!bumpTexPath.empty() && texturesMap.find(bumpTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ bumpTexPath, Texture(RESOURCE_ROOT / fileName / bumpTexPath) });
+            }
+
+        }
+
+        std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
+    }
+
 private:
     Window m_window;
 
@@ -217,6 +261,7 @@ private:
     Texture m_defaultTexture;
     std::map<std::filesystem::path, Texture> texturesMap;
 	bool m_useMaterial{ true };
+    bool m_usePBR{ true };
     bool m_useMouseControls{ false };
 
     // Projection and view matrices for you to fill in and use

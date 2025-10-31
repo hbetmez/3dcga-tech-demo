@@ -135,14 +135,42 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 mesh.material.shininess = 1.0f;
             } else {
                 const auto& objMaterial = inMaterials[materialID];
-                mesh.material.kd = construct_vec3(objMaterial.diffuse);
+                mesh.material.kd = construct_vec3(objMaterial.diffuse); //Kd
+                mesh.material.ks = construct_vec3(objMaterial.specular); //Ks
+                //mesh.material.kt = construct_vec3(objMaterial.transmittance); //needed?
+                //mesh.material.ke = construct_vec3(objMaterial.emission); //needed?
+                mesh.material.shininess = objMaterial.shininess; //any casting here? Ns
+                mesh.material.transparency = objMaterial.dissolve;
+
+                //for PBR: can these be converted from above?
+                //basecolor = kd already known
+                mesh.material.roughness = objMaterial.roughness;
+                mesh.material.metallic = objMaterial.metallic;
+                mesh.material.ior = objMaterial.ior; // Ni in .mtl
+                // F0 calculated from metallic
+
                 if (!objMaterial.diffuse_texname.empty()) {
                     //mesh.material.kdTexture = std::make_shared<Image>(baseDir / objMaterial.diffuse_texname);
                     mesh.material.kdTexturePath = baseDir / objMaterial.diffuse_texname; 
                 }
-                mesh.material.ks = construct_vec3(objMaterial.specular);
-                mesh.material.shininess = objMaterial.shininess;
-                mesh.material.transparency = objMaterial.dissolve;
+                if (!objMaterial.metallic_texname.empty()) {
+                    mesh.material.metallicTexturePath = baseDir / objMaterial.metallic_texname;
+                }
+                if (!objMaterial.roughness_texname.empty()) {
+                    mesh.material.roughnessTexturePath = baseDir / objMaterial.roughness_texname;
+                }
+                // also get normal map??
+                if (!objMaterial.normal_texname.empty()) {
+                    mesh.material.normalTexturePath = baseDir / objMaterial.normal_texname;
+                }
+
+                if (!objMaterial.bump_texname.empty()) {
+                    mesh.material.bumpTexturePath = baseDir / objMaterial.bump_texname;
+                }
+                
+                //mesh.material.ks = construct_vec3(objMaterial.specular);
+                //mesh.material.shininess = objMaterial.shininess;
+                //mesh.material.transparency = objMaterial.dissolve;
             }
 
             out.push_back(std::move(mesh));

@@ -10,7 +10,10 @@ GPUMaterial::GPUMaterial(const Material& material) :
     kd(material.kd),
     ks(material.ks),
     shininess(material.shininess),
-    transparency(material.transparency)
+    transparency(material.transparency),
+    roughness(material.roughness),
+    metallic(material.metallic),
+    ior(material.ior)
     //texturePath(material.kdTexturePath)
 {}
 
@@ -24,7 +27,15 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
 
     // Figure out if this mesh has texture coordinates
     m_hasTextureCoords = static_cast<bool>(cpuMesh.material.kdTexturePath.empty() == false) ;
+    m_hasRoughnessCoords = static_cast<bool>(cpuMesh.material.roughnessTexturePath.empty() == false);
+    m_hasMetallicCoords = static_cast<bool>(cpuMesh.material.metallicTexturePath.empty() == false);
+
     if (m_hasTextureCoords) m_texturePath = cpuMesh.material.kdTexturePath;
+    if (m_hasRoughnessCoords) m_roughnessTexturePath = cpuMesh.material.roughnessTexturePath;
+    if (m_hasMetallicCoords) m_metallicTexturePath = cpuMesh.material.metallicTexturePath;
+
+    if (m_hasNormalCoords) m_normalTexturePath = cpuMesh.material.normalTexturePath;
+    if (m_hasBumpCoords) m_bumpTexturePath = cpuMesh.material.bumpTexturePath;
 
     // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
     glGenVertexArrays(1, &m_vao);
@@ -88,6 +99,26 @@ std::vector<GPUMesh> GPUMesh::loadMeshGPU(std::filesystem::path filePath, bool n
 bool GPUMesh::hasTextureCoords() const
 {
     return m_hasTextureCoords;
+}
+
+bool GPUMesh::hasRoughnessCoords() const
+{
+    return m_hasRoughnessCoords;
+}
+
+bool GPUMesh::hasMetallicCoords() const
+{
+    return m_hasMetallicCoords;
+}
+
+bool GPUMesh::hasNormalCoords() const
+{
+    return m_hasNormalCoords;
+}
+
+bool GPUMesh::hasBumpCoords() const
+{
+    return m_hasBumpCoords;
 }
 
 void GPUMesh::draw(const Shader& drawingShader)
