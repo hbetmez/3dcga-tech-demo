@@ -41,7 +41,7 @@ public:
                 onMouseReleased(button, mods);
         });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
+        m_astronaut = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/AstronoutTest.obj");
 
         try {
             ShaderBuilder defaultBuilder;
@@ -138,6 +138,25 @@ public:
 
     }
 
+    void drawSubMesh(const glm::mat4& mvp, Shader& shader, GPUMesh& mesh, const glm::mat4& normalModelMatrix) {
+        shader.bind();
+        glUniformMatrix4fv(shader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvp));
+        //Uncomment this line when you use the modelMatrix (or fragmentPosition)
+        //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+        glUniformMatrix3fv(shader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+        if (mesh.hasTextureCoords()) {
+            m_texture.bind(GL_TEXTURE0);
+            glUniform1i(shader.getUniformLocation("colorMap"), 0);
+            glUniform1i(shader.getUniformLocation("hasTexCoords"), GL_TRUE);
+            glUniform1i(shader.getUniformLocation("useMaterial"), GL_FALSE);
+        }
+        else {
+            glUniform1i(shader.getUniformLocation("hasTexCoords"), GL_FALSE);
+            glUniform1i(shader.getUniformLocation("useMaterial"), m_useMaterial);
+        }
+        mesh.draw(shader);
+    }
+
     void update()
     {
         int dummyInteger = 0; // Initialized to 0
@@ -180,25 +199,12 @@ public:
                 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
             }
             
-
-            for (GPUMesh& mesh : m_meshes) {
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
-                if (mesh.hasTextureCoords()) {
-                    m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                } else {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                }
-                mesh.draw(m_defaultShader);
+            
+            for (GPUMesh& mesh : m_astronaut) {
+                drawSubMesh(mvpMatrix, m_defaultShader, mesh, normalModelMatrix);
             }
-
+            
+            
             // Showing the Curve
             if (m_showCurve) {
                 m_lineShader.bind();
@@ -262,7 +268,7 @@ private:
     Shader m_defaultShader;
     Shader m_shadowShader;
 
-    std::vector<GPUMesh> m_meshes;
+    std::vector<GPUMesh> m_astronaut;
     Texture m_texture;
     bool m_useMaterial { true };
 
