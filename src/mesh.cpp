@@ -29,6 +29,8 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     m_hasTextureCoords = static_cast<bool>(cpuMesh.material.kdTexturePath.empty() == false) ;
     m_hasRoughnessCoords = static_cast<bool>(cpuMesh.material.roughnessTexturePath.empty() == false);
     m_hasMetallicCoords = static_cast<bool>(cpuMesh.material.metallicTexturePath.empty() == false);
+    m_hasNormalCoords = static_cast<bool>(cpuMesh.material.normalTexturePath.empty() == false);
+    m_hasBumpCoords = static_cast<bool>(cpuMesh.material.bumpTexturePath.empty() == false);
 
     if (m_hasTextureCoords) m_texturePath = cpuMesh.material.kdTexturePath;
     if (m_hasRoughnessCoords) m_roughnessTexturePath = cpuMesh.material.roughnessTexturePath;
