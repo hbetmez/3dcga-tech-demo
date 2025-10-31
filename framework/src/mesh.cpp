@@ -159,6 +159,13 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                     mesh.material.roughnessTexturePath = baseDir / objMaterial.roughness_texname;
                 }
                 // also get normal map??
+                if (!objMaterial.normal_texname.empty()) {
+                    mesh.material.normalTexturePath = baseDir / objMaterial.normal_texname;
+                }
+
+                if (!objMaterial.bump_texname.empty()) {
+                    mesh.material.bumpTexturePath = baseDir / objMaterial.bump_texname;
+                }
                 
                 //mesh.material.ks = construct_vec3(objMaterial.specular);
                 //mesh.material.shininess = objMaterial.shininess;

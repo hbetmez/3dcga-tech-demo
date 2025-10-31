@@ -33,6 +33,9 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     if (m_hasRoughnessCoords) m_roughnessTexturePath = cpuMesh.material.roughnessTexturePath;
     if (m_hasMetallicCoords) m_metallicTexturePath = cpuMesh.material.metallicTexturePath;
 
+    if (m_hasNormalCoords) m_normalTexturePath = cpuMesh.material.normalTexturePath;
+    if (m_hasBumpCoords) m_bumpTexturePath = cpuMesh.material.bumpTexturePath;
+
     // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
     glGenVertexArrays(1, &m_vao);
     glBindVertexArray(m_vao);
@@ -105,6 +108,16 @@ bool GPUMesh::hasRoughnessCoords() const
 bool GPUMesh::hasMetallicCoords() const
 {
     return m_hasMetallicCoords;
+}
+
+bool GPUMesh::hasNormalCoords() const
+{
+    return m_hasNormalCoords;
+}
+
+bool GPUMesh::hasBumpCoords() const
+{
+    return m_hasBumpCoords;
 }
 
 void GPUMesh::draw(const Shader& drawingShader)

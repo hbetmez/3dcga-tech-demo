@@ -48,11 +48,16 @@ public:
     bool hasTextureCoords() const;
     bool hasRoughnessCoords() const;
     bool hasMetallicCoords() const;
+    bool hasNormalCoords() const;
+    bool hasBumpCoords() const;
 
     // getter for texture paths
     std::filesystem::path m_texturePath;
     std::filesystem::path m_roughnessTexturePath;
     std::filesystem::path m_metallicTexturePath;
+
+    std::filesystem::path m_normalTexturePath;
+    std::filesystem::path m_bumpTexturePath;
 
     // Bind VAO and call glDrawElements.
     void draw(const Shader& drawingShader);
@@ -68,6 +73,8 @@ private:
     bool m_hasTextureCoords { false };
     bool m_hasRoughnessCoords{ false };
     bool m_hasMetallicCoords{ false };
+    bool m_hasNormalCoords{ false };
+    bool m_hasBumpCoords{ false };
     GLuint m_ibo { INVALID };
     GLuint m_vbo { INVALID };
     GLuint m_vao { INVALID };
