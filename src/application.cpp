@@ -70,7 +70,7 @@ public:
             std::cerr << e.what() << std::endl;
         }
 
-        // Curve Visualization
+        // Curve Visualization Setup
         ///////////////////////// start
         for (int i = 0; i < 3; ++i) {
             int base = i * 3;
@@ -174,6 +174,10 @@ public:
             // Camera Movement:
             if (m_moveAlongCurve) {
                 updateCameraAlongPath(glfwGetTime());
+            }
+            else {
+                // Default camera position will be here!!
+                m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
             }
             
 
