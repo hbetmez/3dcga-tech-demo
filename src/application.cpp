@@ -46,7 +46,7 @@ public:
 
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        std::filesystem::path fileName{ "mustang_GT" }; //.obj and .mtl name should be same as folder name
+        std::filesystem::path fileName{ "robo" }; //.obj and .mtl name should be same as folder name
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileName / (fileName.string() + ".obj"));
 
         std::cout << "Meshes: " << m_meshes.size() << std::endl;
