@@ -83,26 +83,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 continue;
             else
                 prevMaterialID = shape.mesh.material_ids[endTriangle];
-
-            bool ret = tinyobj::LoadObj(&inAttrib, &inShapes, &inMaterials, &warn, &error, file.string().c_str(), baseDir.string().c_str());
-
-            // DEBUG: Print material info
-            std::cout << "=== TINYOBJ DEBUG ===" << std::endl;
-            std::cout << "Materials loaded: " << inMaterials.size() << std::endl;
-            for (size_t i = 0; i < inMaterials.size(); i++) {
-                std::cout << "Material[" << i << "]: " << inMaterials[i].name << std::endl;
-                std::cout << "  diffuse_texname: '" << inMaterials[i].diffuse_texname << "'" << std::endl;
-            }
-            std::cout << "Shapes loaded: " << inShapes.size() << std::endl;
-            for (size_t i = 0; i < inShapes.size(); i++) {
-                std::cout << "Shape[" << i << "]: " << inShapes[i].name;
-                if (!inShapes[i].mesh.material_ids.empty()) {
-                    std::cout << " -> material_id[0] = " << inShapes[i].mesh.material_ids[0];
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "=====================" << std::endl;
-
+ 
             Mesh mesh;
             using CacheKey = std::tuple<uint32_t, uint32_t, uint32_t>;
             std::map<CacheKey, uint32_t> vertexCache; // Map the index of a vertex as loaded by tinyobjloader to its index in the generated mesh
