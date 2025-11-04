@@ -83,7 +83,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 continue;
             else
                 prevMaterialID = shape.mesh.material_ids[endTriangle];
-
+ 
             Mesh mesh;
             using CacheKey = std::tuple<uint32_t, uint32_t, uint32_t>;
             std::map<CacheKey, uint32_t> vertexCache; // Map the index of a vertex as loaded by tinyobjloader to its index in the generated mesh
@@ -129,6 +129,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
             }
 
             const auto materialID = shape.mesh.material_ids[startTriangle];
+            std::cout << "startTriangle: " << startTriangle << ", materialID: " << materialID << ", inMaterials.size(): " << inMaterials.size() << std::endl;
             if (materialID == -1) {
                 mesh.material.kd = glm::vec3(1.0f);
                 mesh.material.ks = glm::vec3(0.0f);

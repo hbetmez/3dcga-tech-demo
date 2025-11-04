@@ -29,6 +29,8 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     m_hasTextureCoords = static_cast<bool>(cpuMesh.material.kdTexturePath.empty() == false) ;
     m_hasRoughnessCoords = static_cast<bool>(cpuMesh.material.roughnessTexturePath.empty() == false);
     m_hasMetallicCoords = static_cast<bool>(cpuMesh.material.metallicTexturePath.empty() == false);
+    m_hasNormalCoords = static_cast<bool>(cpuMesh.material.normalTexturePath.empty() == false);
+    m_hasBumpCoords = static_cast<bool>(cpuMesh.material.bumpTexturePath.empty() == false);
 
     if (m_hasTextureCoords) m_texturePath = cpuMesh.material.kdTexturePath;
     if (m_hasRoughnessCoords) m_roughnessTexturePath = cpuMesh.material.roughnessTexturePath;
@@ -137,6 +139,17 @@ void GPUMesh::moveInto(GPUMesh&& other)
     freeGpuMemory();
     m_numIndices = other.m_numIndices;
     m_hasTextureCoords = other.m_hasTextureCoords;
+    m_hasRoughnessCoords = other.m_hasRoughnessCoords;
+    m_hasMetallicCoords = other.m_hasMetallicCoords;
+    m_hasNormalCoords = other.m_hasNormalCoords;
+    m_hasBumpCoords = other.m_hasBumpCoords;
+
+    m_texturePath = std::move(other.m_texturePath);
+    m_roughnessTexturePath = std::move(other.m_roughnessTexturePath);
+    m_metallicTexturePath = std::move(other.m_metallicTexturePath); 
+    m_normalTexturePath = std::move(other.m_normalTexturePath); 
+    m_bumpTexturePath = std::move(other.m_bumpTexturePath); 
+
     m_ibo = other.m_ibo;
     m_vbo = other.m_vbo;
     m_vao = other.m_vao;
@@ -144,6 +157,10 @@ void GPUMesh::moveInto(GPUMesh&& other)
 
     other.m_numIndices = 0;
     other.m_hasTextureCoords = other.m_hasTextureCoords;
+    other.m_hasRoughnessCoords = other.m_hasRoughnessCoords;
+    other.m_hasMetallicCoords = other.m_hasMetallicCoords;
+    other.m_hasNormalCoords = other.m_hasNormalCoords;
+    other.m_hasBumpCoords = other.m_hasBumpCoords;
     other.m_ibo = INVALID;
     other.m_vbo = INVALID;
     other.m_vao = INVALID;

@@ -22,6 +22,7 @@ DISABLE_WARNINGS_POP()
 #include <vector>
 #include <framework/trackball.h>
 #include <map>
+#include "light.h"
 
 class Application {
 public:
@@ -64,6 +65,12 @@ public:
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
+            const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl").build();
+			ShaderBuilder lightShaderBuilder;
+			lightShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl");
+			lightShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl");
+			m_lightShader = lightShaderBuilder.build();
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -71,7 +78,8 @@ public:
             // ....
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
-        }
+        }        
+
     }
 
     void update()
@@ -89,6 +97,49 @@ public:
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
 			ImGui::Checkbox("Use Mouse Controls", &m_useMouseControls);
+
+            ImGui::Separator();
+
+            ImGui::Text("Lights");
+
+            ImGui::InputFloat3("Position", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].position.x); // changes x y and z
+            ImGui::ColorEdit3("Color", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].color.r);
+            //ImGui::InputFloat3("Direction", &m_lightManager.getLights()[m_selectedLightIndex].direction.x); // changes x y and z
+
+            if (ImGui::Button("Add")) {
+                m_lightManager.add();
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Remove")) {
+                m_lightManager.remove();
+            }
+
+            ImGui::SameLine();
+
+            // Button for clearing lights
+            if (ImGui::Button("Reset Lights")) {
+                m_lightManager.reset();
+            }
+
+            // Display lights in scene
+            std::vector<std::string> itemStrings = {};
+            for (size_t i = 0; i < m_lightManager.getLights().size(); i++) {
+                auto string = "Light " + std::to_string(i);
+                itemStrings.push_back(string);
+            }
+
+            std::vector<const char*> itemCStrings = {};
+            for (const auto& string : itemStrings) {
+                itemCStrings.push_back(string.c_str());
+            }
+
+            int tempSelectedItem = static_cast<int>(m_lightManager.getSelectedIndex());
+            if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int)itemCStrings.size(), 4)) {
+                m_lightManager.getSelectedIndex() = static_cast<size_t>(tempSelectedItem);
+            }
+
             ImGui::End();
 
             // Clear the screen
@@ -110,7 +161,13 @@ public:
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
-            glm::vec3 lightPos(1.0f, 1.0f, 1.0f);
+            std::vector<glm::vec3> lightPositions;
+            std::vector<glm::vec3> lightColors;
+
+            for (const Light& light : m_lightManager.getLights()) {
+                lightPositions.push_back(light.position);
+                lightColors.push_back(light.color);
+            }
 
             for (size_t i = 0; i < m_meshes.size(); ++i) {
                 GPUMesh& mesh = m_meshes[i];
@@ -157,12 +214,26 @@ public:
                 glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
                 glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
                 glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
-                glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(lightPos));
                 glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
 
-                //temporary: NEXT TODO: MAKE TEXTURE MAPS FOR ROUGHNESS AND METALLIC
+
+                // loop over all lights to do shading with all of them
+                //for (const Light& light : m_lightManager.getLights()) {
+                //    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(light.position));
+                //    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(light.color));
+
+                //    // Draw the mesh once for each light
+                //}
+
+                glUniform1i(m_defaultShader.getUniformLocation("numLights"), (int)lightPositions.size());
+                glUniform3fv(m_defaultShader.getUniformLocation("lightPositions"), lightPositions.size(), glm::value_ptr(lightPositions[0]));
+                glUniform3fv(m_defaultShader.getUniformLocation("lightColors"), lightColors.size(), glm::value_ptr(lightColors[0]));
+                
                 mesh.draw(m_defaultShader);
             }
+
+			// Draw lights as squares
+			drawLightsAsSquares(mvpMatrix);
 
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
@@ -250,12 +321,42 @@ public:
         std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
     }
 
+	void drawLightsAsSquares(glm::mat4 mvpMatrix) {
+		m_lightShader.bind();
+        {
+            const glm::vec4 screenPos = mvpMatrix * glm::vec4(m_lightManager.getLights()[m_lightManager.getSelectedIndex()].position, 1.0f);
+			const glm::vec3 color = m_lightManager.getLights()[m_lightManager.getSelectedIndex()].color;
+
+            glPointSize(40.0f);
+            glUniform4fv(m_lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
+            glUniform3fv(m_lightShader.getUniformLocation("color"), 1, glm::value_ptr(color));
+            //glBindVertexArray(vao);
+            glDrawArrays(GL_POINTS, 0, 1);
+            glBindVertexArray(0);
+        }
+        for (const Light& light : m_lightManager.getLights()) {
+            const glm::vec4 screenPos = mvpMatrix * glm::vec4(light.position, 1.0f);
+            const glm::vec3 color{ 1, 0, 0 };
+
+            glPointSize(10.0f);
+            glUniform4fv(m_lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
+            glUniform3fv(m_lightShader.getUniformLocation("color"), 1, glm::value_ptr(light.color));
+            //glBindVertexArray(vao);
+            glDrawArrays(GL_POINTS, 0, 1);
+            glBindVertexArray(0);
+
+        }
+    }
+
 private:
     Window m_window;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
+	Shader m_lightShader;
+
+    LightManager m_lightManager;
 
     std::vector<GPUMesh> m_meshes;
     Texture m_defaultTexture;
