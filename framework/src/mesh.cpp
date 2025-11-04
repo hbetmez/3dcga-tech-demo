@@ -129,6 +129,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
             }
 
             const auto materialID = shape.mesh.material_ids[startTriangle];
+            std::cout << "startTriangle: " << startTriangle << ", materialID: " << materialID << ", inMaterials.size(): " << inMaterials.size() << std::endl;
             if (materialID == -1) {
                 mesh.material.kd = glm::vec3(1.0f);
                 mesh.material.ks = glm::vec3(0.0f);
