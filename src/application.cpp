@@ -181,9 +181,114 @@ public:
         mesh.draw(m_defaultShader);
     }
 
+    void CharacterWalkAnimation(const glm::mat4& viewProjMatrix,
+        const glm::mat3& normalModelMatrixLoc,
+        const std::vector<glm::vec3>& lightPositions,
+        const std::vector<glm::vec3>& lightColors,
+        float time,
+        std::vector<glm::mat4> &lightMVPs)
+    {
+        
+        glm::mat4 bodyTransform = glm::mat4(1.0f);
+        float animTime = isWalking ? (time - walkStartTime) : 0.0f;
+
+        float legSwingParam = glm::radians(30.0f) * sin(animTime * 4.0f);
+        float armSwingParam = glm::radians(30.0f) * sin(animTime * 4.0f + glm::pi<float>());
+        // Offsets from origin to joints
+        const float footY = 0.2185f;
+        const float legY = 0.3804f;
+        const float handY = 0.5217f;
+        const float armY = 0.6023f;
+
+        // body
+        drawMesh(m_meshes[0], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+
+        
+
+        // legs
+        glm::mat4 rightLegTransform = glm::mat4(1.0f);
+        glm::mat4 leftLegTransform = glm::mat4(1.0f);
+
+        if (isWalking) {
+            rightLegTransform = bodyTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, legY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), legSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -legY, 0.0f));
+
+            leftLegTransform = bodyTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, legY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), -legSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -legY, 0.0f));
+        }
+        
+        drawMesh(m_meshes[3], viewProjMatrix * rightLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshes[4], viewProjMatrix * leftLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+
+        // Foots
+        glm::mat4 rightFootTransform = glm::mat4(1.0f);
+        glm::mat4 leftFootTransform = glm::mat4(1.0f);
+
+        if (isWalking) {
+            rightFootTransform = rightLegTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, footY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), -0.5f * legSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
+
+            leftFootTransform = leftLegTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, footY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), 0.5f * legSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
+        }
+        
+        drawMesh(m_meshes[1], viewProjMatrix * rightFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshes[2], viewProjMatrix * leftFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+
+        // arms
+        glm::mat4 rightArmTransform = glm::mat4(1.0f);
+        glm::mat4 leftArmTransform = glm::mat4(1.0f);
+        if (isWalking) {
+            rightArmTransform = bodyTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, armY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), armSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -armY, 0.0f));
+
+            leftArmTransform = bodyTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, armY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), -armSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -armY, 0.0f));
+        }
+        
+        drawMesh(m_meshes[7], viewProjMatrix * rightArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshes[8], viewProjMatrix * leftArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+
+        // Hands
+        glm::mat4 rightHandTransform = glm::mat4(1.0f);
+        glm::mat4 leftHandTransform = glm::mat4(1.0f);
+        if (isWalking) {
+            rightHandTransform = rightArmTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, handY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), 0.5f * armSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
+
+            leftHandTransform = leftArmTransform
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, handY, 0.0f))
+                * glm::rotate(glm::mat4(1.0f), -0.5f * armSwingParam, glm::vec3(1, 0, 0))
+                * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
+        }
+        
+        drawMesh(m_meshes[5], viewProjMatrix * rightHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshes[6], viewProjMatrix * leftHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+
+        // Head
+        drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+    }
+
+
+
     void update()
     {
         while (!m_window.shouldClose()) {
+            float currentTime = glfwGetTime();
             // This is your game loop
             // Put your real-time logic and rendering in here
             m_window.updateInput();
@@ -196,6 +301,8 @@ public:
             ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
+			
+            ImGui::Checkbox("Walking animation", &isWalking);
 
             ImGui::Separator();
             ImGui::Text("Lights");
@@ -314,11 +421,8 @@ public:
                 lightColors.push_back(light.color);
             }
 
-            for (size_t i = 0; i < m_meshes.size(); ++i) {
-                GPUMesh& mesh = m_meshes[i];
-
-                drawMesh(mesh, mvpMatrix, normalModelMatrix, lightPositions, lightColors, lightMVPs);
-            }
+            if (!isWalking) walkStartTime = currentTime;
+            CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrix);
@@ -499,6 +603,9 @@ private:
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix { 1.0f };
+
+    bool isWalking = false;
+    float walkStartTime = 0.0f;
 };
 
 int main()
