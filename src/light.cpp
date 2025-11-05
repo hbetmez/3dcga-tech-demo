@@ -9,13 +9,13 @@ LightManager::LightManager()
 void LightManager::reset()
 {
     lights.clear();
-    lights.push_back(Light{ glm::vec3(0, 0, 3), glm::vec3(1) });
+    add();
     selectedLightIndex = 0;
 }
 
 void LightManager::add()
 {
-    lights.push_back(Light{ glm::vec3(0, 0, 3), glm::vec3(1) });
+    lights.push_back(Light{ glm::vec3(0.5, 0.5, 0.5), glm::vec3(1), glm::vec3(0.0), glm::radians(80.0f) });
 }
 
 void LightManager::remove()
