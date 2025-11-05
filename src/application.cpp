@@ -111,6 +111,76 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
+    void drawMesh(GPUMesh& mesh, const glm::mat4 &mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc, 
+        std::vector<glm::vec3> lightPositions, std::vector<glm::vec3> lightColors, std::vector<glm::mat4> lightMVPs) {
+        m_defaultShader.bind();
+
+        glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrixLoc));
+        //Uncomment this line when you use the modelMatrix (or fragmentPosition)
+        glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+        glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrixLoc));
+
+        // get all the textures from the map if the mesh has them
+        std::filesystem::path kdTexPath;
+        std::filesystem::path roughnessTexPath;
+        std::filesystem::path metallicTexPath;
+        std::filesystem::path normalTexPath;
+        std::filesystem::path bumpTexPath;
+
+        if (mesh.hasTextureCoords() && !mesh.m_texturePath.empty() && texturesMap.find(mesh.m_texturePath) != texturesMap.end())
+            kdTexPath = mesh.m_texturePath;
+        if (mesh.hasRoughnessCoords() && !mesh.m_roughnessTexturePath.empty() && texturesMap.find(mesh.m_roughnessTexturePath) != texturesMap.end())
+            roughnessTexPath = mesh.m_roughnessTexturePath;
+        if (mesh.hasRoughnessCoords() && !mesh.m_metallicTexturePath.empty() && texturesMap.find(mesh.m_metallicTexturePath) != texturesMap.end())
+            metallicTexPath = mesh.m_metallicTexturePath;
+        if (mesh.hasNormalCoords() && !mesh.m_normalTexturePath.empty() && texturesMap.find(mesh.m_normalTexturePath) != texturesMap.end())
+            normalTexPath = mesh.m_normalTexturePath;
+        if (mesh.hasNormalCoords() && !mesh.m_bumpTexturePath.empty() && texturesMap.find(mesh.m_bumpTexturePath) != texturesMap.end())
+            bumpTexPath = mesh.m_bumpTexturePath;
+
+        if (!kdTexPath.empty()) { texturesMap.at(kdTexPath).bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE); }
+
+        if (!roughnessTexPath.empty()) { texturesMap.at(roughnessTexPath).bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE); }
+
+        if (!metallicTexPath.empty()) { texturesMap.at(metallicTexPath).bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE); }
+
+        if (!normalTexPath.empty()) { texturesMap.at(normalTexPath).bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_FALSE); }
+
+        if (!bumpTexPath.empty()) { texturesMap.at(bumpTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_FALSE); }                // -- now we have all textures --
+
+        glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+        glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+        glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
+        glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
+
+
+        // *** SHADOWS
+        glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
+        glUniform1i(m_defaultShader.getUniformLocation("usePCF"), m_usePCF);
+        glUniform1i(m_defaultShader.getUniformLocation("PCFWindowSize"), m_PCFWindowSize);
+
+        glUniformMatrix4fv(m_defaultShader.getUniformLocation("lightMVPs"), lightMVPs.size(), GL_FALSE, glm::value_ptr(lightMVPs[0]));
+
+        for (size_t idx = 0; idx < m_shadowTextures.size(); ++idx) {
+            glActiveTexture(GL_TEXTURE5 + idx);
+            glBindTexture(GL_TEXTURE_2D, m_shadowTextures[idx]);
+            std::string uniformName = "texShadow[" + std::to_string(idx) + "]";
+            glUniform1i(m_defaultShader.getUniformLocation(uniformName.c_str()), 5 + idx);
+        }
+        // *** end SHADOWS
+
+        glUniform1i(m_defaultShader.getUniformLocation("numLights"), (int)lightPositions.size());
+        glUniform3fv(m_defaultShader.getUniformLocation("lightPositions"), lightPositions.size(), glm::value_ptr(lightPositions[0]));
+        glUniform3fv(m_defaultShader.getUniformLocation("lightColors"), lightColors.size(), glm::value_ptr(lightColors[0]));
+
+        mesh.draw(m_defaultShader);
+    }
+
     void update()
     {
         while (!m_window.shouldClose()) {
@@ -239,7 +309,6 @@ public:
 
 			// *** end SHADOWS
 
-
             for (const Light& light : m_lightManager.getLights()) {
                 lightPositions.push_back(light.position);
                 lightColors.push_back(light.color);
@@ -247,71 +316,8 @@ public:
 
             for (size_t i = 0; i < m_meshes.size(); ++i) {
                 GPUMesh& mesh = m_meshes[i];
-                m_defaultShader.bind();
 
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
-
-                // get all the textures from the map if the mesh has them
-                std::filesystem::path kdTexPath;
-                std::filesystem::path roughnessTexPath;
-                std::filesystem::path metallicTexPath;
-                std::filesystem::path normalTexPath;
-                std::filesystem::path bumpTexPath;
-
-                if (mesh.hasTextureCoords() && !mesh.m_texturePath.empty() && texturesMap.find(mesh.m_texturePath) != texturesMap.end())
-                    kdTexPath = mesh.m_texturePath;
-                if (mesh.hasRoughnessCoords() && !mesh.m_roughnessTexturePath.empty() && texturesMap.find(mesh.m_roughnessTexturePath) != texturesMap.end())
-                    roughnessTexPath = mesh.m_roughnessTexturePath;
-                if (mesh.hasRoughnessCoords() && !mesh.m_metallicTexturePath.empty() && texturesMap.find(mesh.m_metallicTexturePath) != texturesMap.end())
-                    metallicTexPath = mesh.m_metallicTexturePath;
-                if (mesh.hasNormalCoords() && !mesh.m_normalTexturePath.empty() && texturesMap.find(mesh.m_normalTexturePath) != texturesMap.end())
-                    normalTexPath = mesh.m_normalTexturePath;
-                if (mesh.hasNormalCoords() && !mesh.m_bumpTexturePath.empty() && texturesMap.find(mesh.m_bumpTexturePath) != texturesMap.end())
-                    bumpTexPath = mesh.m_bumpTexturePath;
-
-                if (!kdTexPath.empty()) { texturesMap.at(kdTexPath).bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE); }
-                else { m_defaultTexture.bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE); }
-
-                if (!roughnessTexPath.empty()) { texturesMap.at(roughnessTexPath).bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_TRUE); }
-                else { m_defaultTexture.bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE); }
-
-                if (!metallicTexPath.empty()) { texturesMap.at(metallicTexPath).bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_TRUE); }
-                else { m_defaultTexture.bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE); }
-
-                if (!normalTexPath.empty()) { texturesMap.at(normalTexPath).bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_TRUE); }
-                else { m_defaultTexture.bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_FALSE); }
-
-                if (!bumpTexPath.empty()) { texturesMap.at(bumpTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_TRUE); }
-                else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_FALSE); }                // -- now we have all textures --
-
-                glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
-                glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
-
-                glUniform1i(m_defaultShader.getUniformLocation("numLights"), (int)lightPositions.size());
-                glUniform3fv(m_defaultShader.getUniformLocation("lightPositions"), lightPositions.size(), glm::value_ptr(lightPositions[0]));
-                glUniform3fv(m_defaultShader.getUniformLocation("lightColors"), lightColors.size(), glm::value_ptr(lightColors[0]));
-                
-				// *** SHADOWS
-                glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
-                glUniform1i(m_defaultShader.getUniformLocation("usePCF"), m_usePCF);
-                glUniform1i(m_defaultShader.getUniformLocation("PCFWindowSize"), m_PCFWindowSize);
-
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("lightMVPs"), lightMVPs.size(), GL_FALSE, glm::value_ptr(lightMVPs[0]));
-				
-                for (size_t idx = 0; idx < m_shadowTextures.size(); ++idx) {
-                    glActiveTexture(GL_TEXTURE5 + idx);
-                    glBindTexture(GL_TEXTURE_2D, m_shadowTextures[idx]);
-                    std::string uniformName = "texShadow[" + std::to_string(idx) + "]";
-                    glUniform1i(m_defaultShader.getUniformLocation(uniformName.c_str()), 5 + idx);
-                }
-                // *** end SHADOWS
-
-                mesh.draw(m_defaultShader);
+                drawMesh(mesh, mvpMatrix, normalModelMatrix, lightPositions, lightColors, lightMVPs);
             }
 
 			// Draw lights as squares
