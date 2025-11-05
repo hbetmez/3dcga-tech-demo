@@ -24,6 +24,9 @@ DISABLE_WARNINGS_POP()
 #include <map>
 #include "light.h"
 
+#define SHADOWTEX_WIDTH 1024
+#define SHADOWTEX_HEIGHT 1024
+
 class Application {
 public:
     Application()
@@ -78,13 +81,38 @@ public:
             // ....
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
-        }        
+        }
 
+        //*** For SHADOWS
+        for (size_t i = 0; i < m_lightManager.getLights().size(); ++i) {
+            GLuint texShadow;
+            glGenTextures(1, &texShadow);
+            glBindTexture(GL_TEXTURE_2D, texShadow);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT,
+                0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+            m_shadowTextures.push_back(texShadow);
+
+            // Create framebuffer
+            GLuint framebuffer;
+            glGenFramebuffers(1, &framebuffer);
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texShadow, 0);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            m_shadowFramebuffers.push_back(framebuffer);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     void update()
     {
-        int dummyInteger = 0; // Initialized to 0
         while (!m_window.shouldClose()) {
             // This is your game loop
             // Put your real-time logic and rendering in here
@@ -92,19 +120,24 @@ public:
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
-            ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
-            ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
+            ImGui::Checkbox("Mouse Controls", &m_useMouseControls);
+            
+            ImGui::Separator();
+            ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
-			ImGui::Checkbox("Use Mouse Controls", &m_useMouseControls);
 
             ImGui::Separator();
-
             ImGui::Text("Lights");
-
+            ImGui::Checkbox("Shadows", &m_useShadows);
+            ImGui::Checkbox("PCF", &m_usePCF);
+            ImGui::SameLine();
+            (ImGui::SliderInt("PCF Window", &m_PCFWindowSize, 3, 15, "%d"));
+            if (m_PCFWindowSize % 2 == 0) m_PCFWindowSize += 1;
             ImGui::InputFloat3("Position", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].position.x); // changes x y and z
             ImGui::ColorEdit3("Color", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].color.r);
-            //ImGui::InputFloat3("Direction", &m_lightManager.getLights()[m_selectedLightIndex].direction.x); // changes x y and z
+            ImGui::InputFloat3("Direction", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].direction.x); // changes x y and z
+            ImGui::SliderAngle("Light FOV", &m_lightManager.getLights()[m_lightManager.getSelectedIndex()].fov, 60.0f, 120.0f);
 
             if (ImGui::Button("Add")) {
                 m_lightManager.add();
@@ -164,6 +197,49 @@ public:
             std::vector<glm::vec3> lightPositions;
             std::vector<glm::vec3> lightColors;
 
+			// *** SHADOWS
+            updateShadowTextures();
+            std::vector<glm::mat4> lightMVPs;
+
+            for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
+                const Light& light = m_lightManager.getLights()[lightIdx];
+
+                glm::vec3 up = glm::vec3(0, 1, 0);
+                glm::vec3 lightPos = light.position;
+                glm::vec3 target = light.direction;
+				float fov = light.fov;
+
+                glm::mat4 lightView = glm::lookAt(lightPos, target, up);
+                glm::mat4 lightProjection = glm::perspective(fov, 1.0f, 0.1f, 100.0f);
+                glm::mat4 lightMVP = lightProjection * lightView * m_modelMatrix;
+				lightMVPs.push_back(lightMVP);
+
+                // Bind framebuffer for this light
+                glBindFramebuffer(GL_FRAMEBUFFER, m_shadowFramebuffers[lightIdx]);
+                glViewport(0, 0, 1024, 1024);
+                glClearDepth(1.0);
+                glClear(GL_DEPTH_BUFFER_BIT);
+                glEnable(GL_DEPTH_TEST);
+
+                // Bind shadow shader
+                m_shadowShader.bind();
+                glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
+
+                // Render each mesh
+                for (GPUMesh& mesh : m_meshes) {
+                    mesh.draw(m_shadowShader);
+                }
+
+                // Unbind framebuffer
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            }
+
+            // Reset viewport for main rendering
+            glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
+
+			// *** end SHADOWS
+
+
             for (const Light& light : m_lightManager.getLights()) {
                 lightPositions.push_back(light.position);
                 lightColors.push_back(light.color);
@@ -175,7 +251,7 @@ public:
 
                 glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
                 //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
 
                 // get all the textures from the map if the mesh has them
@@ -216,19 +292,25 @@ public:
                 glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
                 glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
 
-
-                // loop over all lights to do shading with all of them
-                //for (const Light& light : m_lightManager.getLights()) {
-                //    glUniform3fv(m_defaultShader.getUniformLocation("lightPos"), 1, glm::value_ptr(light.position));
-                //    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(light.color));
-
-                //    // Draw the mesh once for each light
-                //}
-
                 glUniform1i(m_defaultShader.getUniformLocation("numLights"), (int)lightPositions.size());
                 glUniform3fv(m_defaultShader.getUniformLocation("lightPositions"), lightPositions.size(), glm::value_ptr(lightPositions[0]));
                 glUniform3fv(m_defaultShader.getUniformLocation("lightColors"), lightColors.size(), glm::value_ptr(lightColors[0]));
                 
+				// *** SHADOWS
+                glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
+                glUniform1i(m_defaultShader.getUniformLocation("usePCF"), m_usePCF);
+                glUniform1i(m_defaultShader.getUniformLocation("PCFWindowSize"), m_PCFWindowSize);
+
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("lightMVPs"), lightMVPs.size(), GL_FALSE, glm::value_ptr(lightMVPs[0]));
+				
+                for (size_t idx = 0; idx < m_shadowTextures.size(); ++idx) {
+                    glActiveTexture(GL_TEXTURE5 + idx);
+                    glBindTexture(GL_TEXTURE_2D, m_shadowTextures[idx]);
+                    std::string uniformName = "texShadow[" + std::to_string(idx) + "]";
+                    glUniform1i(m_defaultShader.getUniformLocation(uniformName.c_str()), 5 + idx);
+                }
+                // *** end SHADOWS
+
                 mesh.draw(m_defaultShader);
             }
 
@@ -348,6 +430,39 @@ public:
         }
     }
 
+    void updateShadowTextures() {
+        size_t numLights = m_lightManager.getLights().size();
+
+		//add new textures if lights increased
+        while (m_shadowTextures.size() < numLights) {
+            GLuint texShadow;
+            glGenTextures(1, &texShadow);
+            glBindTexture(GL_TEXTURE_2D, texShadow);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT,
+                0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            m_shadowTextures.push_back(texShadow);
+
+            GLuint framebuffer;
+            glGenFramebuffers(1, &framebuffer);
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texShadow, 0);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            m_shadowFramebuffers.push_back(framebuffer);
+        }
+
+        // remove excess textures if lights were taken out
+        while (m_shadowTextures.size() > numLights) {
+            glDeleteTextures(1, &m_shadowTextures.back());
+            m_shadowTextures.pop_back();
+            glDeleteFramebuffers(1, &m_shadowFramebuffers.back());
+            m_shadowFramebuffers.pop_back();
+        }
+    }
+
 private:
     Window m_window;
 
@@ -356,14 +471,20 @@ private:
     Shader m_shadowShader;
 	Shader m_lightShader;
 
+    std::vector<GLuint> m_shadowTextures;
+    std::vector<GLuint> m_shadowFramebuffers;
+    bool m_useShadows{ true };
+	bool m_usePCF{ true };
+	int m_PCFWindowSize{ 5 };
+
     LightManager m_lightManager;
 
     std::vector<GPUMesh> m_meshes;
     Texture m_defaultTexture;
     std::map<std::filesystem::path, Texture> texturesMap;
-	bool m_useMaterial{ true };
+	bool m_useMaterial{ false };
     bool m_usePBR{ true };
-    bool m_useMouseControls{ false };
+    bool m_useMouseControls{ true };
 
     // Projection and view matrices for you to fill in and use
     //glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
