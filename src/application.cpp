@@ -23,6 +23,7 @@ DISABLE_WARNINGS_POP()
 #include <framework/trackball.h>
 #include <map>
 #include "light.h"
+#include <stb/stb_image.h>
 
 #define SHADOWTEX_WIDTH 1024
 #define SHADOWTEX_HEIGHT 1024
@@ -46,6 +47,72 @@ public:
             else if (action == GLFW_RELEASE)
                 onMouseReleased(button, mods);
         });
+
+		std::string skyboxPath = RESOURCE_ROOT "resources/space/";
+        std::vector<std::string> faces{
+            skyboxPath + "right.png",
+            skyboxPath + "left.png",
+            skyboxPath + "top.png",
+            skyboxPath + "bottom.png",
+            skyboxPath + "front.png",
+            skyboxPath + "back.png"
+        };
+
+        float skyboxVertices[] = {
+            // positions          
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+            -1.0f,  1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f
+        };
+
+        glGenVertexArrays(1, &m_skyboxVAO);
+        glGenBuffers(1, &m_skyboxVBO);
+        glBindVertexArray(m_skyboxVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_skyboxVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glBindVertexArray(0);
+
+        m_skyboxTexture = loadCubemap(faces);
 
 
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
@@ -73,6 +140,12 @@ public:
 			lightShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl");
 			lightShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl");
 			m_lightShader = lightShaderBuilder.build();
+
+			const Shader skyboxShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl").build();
+			ShaderBuilder skyboxShaderBuilder;
+			skyboxShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
+			skyboxShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
+			m_skyboxShader = skyboxShaderBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
@@ -125,7 +198,8 @@ public:
         std::filesystem::path roughnessTexPath;
         std::filesystem::path metallicTexPath;
         std::filesystem::path normalTexPath;
-        std::filesystem::path bumpTexPath;
+        std::filesystem::path kaTexPath;
+		std::filesystem::path emissiveTexPath;
 
         if (mesh.hasTextureCoords() && !mesh.m_texturePath.empty() && texturesMap.find(mesh.m_texturePath) != texturesMap.end())
             kdTexPath = mesh.m_texturePath;
@@ -135,29 +209,53 @@ public:
             metallicTexPath = mesh.m_metallicTexturePath;
         if (mesh.hasNormalCoords() && !mesh.m_normalTexturePath.empty() && texturesMap.find(mesh.m_normalTexturePath) != texturesMap.end())
             normalTexPath = mesh.m_normalTexturePath;
-        if (mesh.hasNormalCoords() && !mesh.m_bumpTexturePath.empty() && texturesMap.find(mesh.m_bumpTexturePath) != texturesMap.end())
-            bumpTexPath = mesh.m_bumpTexturePath;
+        if (mesh.hasKaCoords() && !mesh.m_KaTexturePath.empty() && texturesMap.find(mesh.m_KaTexturePath) != texturesMap.end())
+            kaTexPath = mesh.m_KaTexturePath;
+		if (mesh.hasEmissiveCoords() && !mesh.m_emissiveTexturePath.empty() && texturesMap.find(mesh.m_emissiveTexturePath) != texturesMap.end())
+			emissiveTexPath = mesh.m_emissiveTexturePath;
 
+		glActiveTexture(GL_TEXTURE0);
         if (!kdTexPath.empty()) { texturesMap.at(kdTexPath).bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE); }
 
+		glActiveTexture(GL_TEXTURE1);
         if (!roughnessTexPath.empty()) { texturesMap.at(roughnessTexPath).bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE); }
 
+		glActiveTexture(GL_TEXTURE2);
         if (!metallicTexPath.empty()) { texturesMap.at(metallicTexPath).bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE); }
 
+		glActiveTexture(GL_TEXTURE3);
         if (!normalTexPath.empty()) { texturesMap.at(normalTexPath).bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_FALSE); }
 
-        if (!bumpTexPath.empty()) { texturesMap.at(bumpTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_TRUE); }
-        else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasBumpCoords"), GL_FALSE); }                // -- now we have all textures --
+		glActiveTexture(GL_TEXTURE4);
+        if (!kaTexPath.empty()) { texturesMap.at(kaTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasKaCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasKaCoords"), GL_FALSE); }
+
+		glActiveTexture(GL_TEXTURE5);
+        if (!emissiveTexPath.empty()) { texturesMap.at(emissiveTexPath).bind(GL_TEXTURE5); glUniform1i(m_defaultShader.getUniformLocation("hasEmissiveCoords"), GL_TRUE); }
+        else { m_defaultTexture.bind(GL_TEXTURE5); glUniform1i(m_defaultShader.getUniformLocation("hasEmissiveCoords"), GL_FALSE); }
+
 
         glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_defaultShader.getUniformLocation("roughnessMap"), 1);
+		glUniform1i(m_defaultShader.getUniformLocation("metallicMap"), 2);
+		glUniform1i(m_defaultShader.getUniformLocation("normalMap"), 3);
+		glUniform1i(m_defaultShader.getUniformLocation("kaMap"), 4);
+		glUniform1i(m_defaultShader.getUniformLocation("emissiveMap"), 5);
         glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
         glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
+		glUniform1i(m_defaultShader.getUniformLocation("useAOTex"), m_useAOTex);
+		glUniform1i(m_defaultShader.getUniformLocation("useEmissive"), m_useEmissive);
         glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
 
+        // ** environment mapping
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTexture);
+        glUniform1i(m_defaultShader.getUniformLocation("environmentMap"), 6);
+		glUniform1i(m_defaultShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping);
 
         // *** SHADOWS
         glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
@@ -167,10 +265,11 @@ public:
         glUniformMatrix4fv(m_defaultShader.getUniformLocation("lightMVPs"), lightMVPs.size(), GL_FALSE, glm::value_ptr(lightMVPs[0]));
 
         for (size_t idx = 0; idx < m_shadowTextures.size(); ++idx) {
-            glActiveTexture(GL_TEXTURE5 + idx);
+            glActiveTexture(GL_TEXTURE7 + idx); //important: update texture slot if you need more textures
             glBindTexture(GL_TEXTURE_2D, m_shadowTextures[idx]);
             std::string uniformName = "texShadow[" + std::to_string(idx) + "]";
-            glUniform1i(m_defaultShader.getUniformLocation(uniformName.c_str()), 5 + idx);
+            // Important: update the constant value below to correspond to next available texture index
+            glUniform1i(m_defaultShader.getUniformLocation(uniformName.c_str()), 7 + idx);
         }
         // *** end SHADOWS
 
@@ -301,8 +400,17 @@ public:
             ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
+<<<<<<< Updated upstream
 			
             ImGui::Checkbox("Walking animation", &isWalking);
+=======
+            ImGui::Checkbox("AO Texture", &m_useAOTex);
+			ImGui::Checkbox("Emissive", &m_useEmissive);
+
+            ImGui::Separator();
+            ImGui::Text("Environment Mapping");
+            ImGui::Checkbox("Use Environment Mapping", &m_useEnvironmentMapping);
+>>>>>>> Stashed changes
 
             ImGui::Separator();
             ImGui::Text("Lights");
@@ -388,7 +496,7 @@ public:
 
                 glm::mat4 lightView = glm::lookAt(lightPos, target, up);
                 glm::mat4 lightProjection = glm::perspective(fov, 1.0f, 0.1f, 100.0f);
-                glm::mat4 lightMVP = lightProjection * lightView * m_modelMatrix;
+                glm::mat4 lightMVP = lightProjection * lightView; //* m_modelMatrix
 				lightMVPs.push_back(lightMVP);
 
                 // Bind framebuffer for this light
@@ -426,6 +534,9 @@ public:
 
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrix);
+
+			// Draw skybox last
+            drawSkybox(projectionMatrix, viewMatrix);
 
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
@@ -477,9 +588,10 @@ public:
             std::filesystem::path roughnessTexPath = mesh.m_roughnessTexturePath;
             std::filesystem::path metallicTexPath = mesh.m_metallicTexturePath;
             std::filesystem::path normalTexPath = mesh.m_normalTexturePath;
-            std::filesystem::path bumpTexPath = mesh.m_bumpTexturePath;
+            std::filesystem::path kaTexPath = mesh.m_KaTexturePath;
+			std::filesystem::path emissiveTexPath = mesh.m_emissiveTexturePath;
 
-            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << bumpTexPath << std::endl;
+            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
 
             ////add textures to map, then use those
             if (!kdTexPath.empty()) {
@@ -504,10 +616,13 @@ public:
                 texturesMap.insert({ normalTexPath, Texture(RESOURCE_ROOT / fileName / normalTexPath) });
             }
 
-            if (!bumpTexPath.empty() && texturesMap.find(bumpTexPath.string()) == texturesMap.end()) {
-                texturesMap.insert({ bumpTexPath, Texture(RESOURCE_ROOT / fileName / bumpTexPath) });
+            if (!kaTexPath.empty() && texturesMap.find(kaTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ kaTexPath, Texture(RESOURCE_ROOT / fileName / kaTexPath) });
             }
 
+            if (!emissiveTexPath.empty() && texturesMap.find(emissiveTexPath.string()) == texturesMap.end()) {
+                texturesMap.insert({ emissiveTexPath, Texture(RESOURCE_ROOT / fileName / emissiveTexPath) });
+            }
         }
 
         std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
@@ -573,6 +688,65 @@ public:
         }
     }
 
+    GLuint loadCubemap(std::vector<std::string> faces) {
+        GLuint textureID;
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+        int width, height, nrChannels;
+        for (unsigned int i = 0; i < faces.size(); i++) {
+            unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+            if (data) {
+                GLenum format;
+                if (nrChannels == 1)
+                    format = GL_RED;
+                else if (nrChannels == 3)
+                    format = GL_RGB;
+                else if (nrChannels == 4)
+                    format = GL_RGBA;
+
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                    0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+                stbi_image_free(data);
+            }
+            else {
+                std::cout << "Cubemap failed to load at path: " << faces[i] << std::endl;
+                stbi_image_free(data);
+            }
+        }
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        return textureID;
+    }
+
+    void drawSkybox(const glm::mat4& projectionMatrix, const glm::mat4& viewMatrix) {
+		glDepthFunc(GL_LEQUAL); // sky will be drawn at the farthest depth
+
+        m_skyboxShader.bind();
+
+		// no translation for skybox view matrix
+        glm::mat4 view = glm::mat4(glm::mat3(viewMatrix));
+
+        glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+        // bind textures
+        glBindVertexArray(m_skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTexture);
+        glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 0);
+
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+        glDepthFunc(GL_LESS);
+    }
+
+
 private:
     Window m_window;
 
@@ -580,6 +754,12 @@ private:
     Shader m_defaultShader;
     Shader m_shadowShader;
 	Shader m_lightShader;
+	Shader m_skyboxShader;
+    GLuint m_skyboxVAO;
+    GLuint m_skyboxVBO;
+
+    GLuint m_skyboxTexture;
+	bool m_useEnvironmentMapping{ true };
 
     std::vector<GLuint> m_shadowTextures;
     std::vector<GLuint> m_shadowFramebuffers;
@@ -594,6 +774,8 @@ private:
     std::map<std::filesystem::path, Texture> texturesMap;
 	bool m_useMaterial{ false };
     bool m_usePBR{ true };
+	bool m_useAOTex{ true };
+	bool m_useEmissive{ true };
     bool m_useMouseControls{ true };
 
     // Projection and view matrices for you to fill in and use

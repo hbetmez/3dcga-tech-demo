@@ -148,11 +148,13 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 mesh.material.roughness = objMaterial.roughness;
                 mesh.material.metallic = objMaterial.metallic;
                 mesh.material.ior = objMaterial.ior; // Ni in .mtl
-                // F0 calculated from metallic
 
                 if (!objMaterial.diffuse_texname.empty()) {
                     //mesh.material.kdTexture = std::make_shared<Image>(baseDir / objMaterial.diffuse_texname);
                     mesh.material.kdTexturePath = baseDir / objMaterial.diffuse_texname; 
+                }
+                if (!objMaterial.ambient_texname.empty()) {
+                    mesh.material.kaTexturePath = baseDir / objMaterial.ambient_texname;
                 }
                 if (!objMaterial.metallic_texname.empty()) {
                     mesh.material.metallicTexturePath = baseDir / objMaterial.metallic_texname;
@@ -160,18 +162,12 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 if (!objMaterial.roughness_texname.empty()) {
                     mesh.material.roughnessTexturePath = baseDir / objMaterial.roughness_texname;
                 }
-                // also get normal map??
                 if (!objMaterial.normal_texname.empty()) {
                     mesh.material.normalTexturePath = baseDir / objMaterial.normal_texname;
                 }
-
-                if (!objMaterial.bump_texname.empty()) {
-                    mesh.material.bumpTexturePath = baseDir / objMaterial.bump_texname;
+                if (!objMaterial.emissive_texname.empty()) {
+                    mesh.material.emissiveTexturePath = baseDir / objMaterial.emissive_texname;
                 }
-                
-                //mesh.material.ks = construct_vec3(objMaterial.specular);
-                //mesh.material.shininess = objMaterial.shininess;
-                //mesh.material.transparency = objMaterial.dissolve;
             }
 
             out.push_back(std::move(mesh));

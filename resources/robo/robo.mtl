@@ -15,6 +15,7 @@ newmtl robo
 	map_Ka robo_ao.tga
 	map_Kd robo_albedo.tga
 	map_Ks robo_metalness.tga
+	map_Ke robo_emissive.tga
 	map_Pm robo_metalness.tga
 	map_Pr robo_roughness.tga
 	map_bump robo_normal.tga

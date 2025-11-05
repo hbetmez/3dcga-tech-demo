@@ -30,14 +30,16 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     m_hasRoughnessCoords = static_cast<bool>(cpuMesh.material.roughnessTexturePath.empty() == false);
     m_hasMetallicCoords = static_cast<bool>(cpuMesh.material.metallicTexturePath.empty() == false);
     m_hasNormalCoords = static_cast<bool>(cpuMesh.material.normalTexturePath.empty() == false);
-    m_hasBumpCoords = static_cast<bool>(cpuMesh.material.bumpTexturePath.empty() == false);
+    m_hasKaCoords = static_cast<bool>(cpuMesh.material.kaTexturePath.empty() == false);
+	m_hasEmissiveCoords = static_cast<bool>(cpuMesh.material.emissiveTexturePath.empty() == false);
 
     if (m_hasTextureCoords) m_texturePath = cpuMesh.material.kdTexturePath;
     if (m_hasRoughnessCoords) m_roughnessTexturePath = cpuMesh.material.roughnessTexturePath;
     if (m_hasMetallicCoords) m_metallicTexturePath = cpuMesh.material.metallicTexturePath;
 
     if (m_hasNormalCoords) m_normalTexturePath = cpuMesh.material.normalTexturePath;
-    if (m_hasBumpCoords) m_bumpTexturePath = cpuMesh.material.bumpTexturePath;
+    if (m_hasKaCoords) m_KaTexturePath = cpuMesh.material.kaTexturePath;
+	if (m_hasEmissiveCoords) m_emissiveTexturePath = cpuMesh.material.emissiveTexturePath;
 
     // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
     glGenVertexArrays(1, &m_vao);
@@ -118,9 +120,14 @@ bool GPUMesh::hasNormalCoords() const
     return m_hasNormalCoords;
 }
 
-bool GPUMesh::hasBumpCoords() const
+bool GPUMesh::hasKaCoords() const
 {
-    return m_hasBumpCoords;
+    return m_hasKaCoords;
+}
+
+bool GPUMesh::hasEmissiveCoords() const
+{
+	return m_hasEmissiveCoords;
 }
 
 void GPUMesh::draw(const Shader& drawingShader)
@@ -142,13 +149,15 @@ void GPUMesh::moveInto(GPUMesh&& other)
     m_hasRoughnessCoords = other.m_hasRoughnessCoords;
     m_hasMetallicCoords = other.m_hasMetallicCoords;
     m_hasNormalCoords = other.m_hasNormalCoords;
-    m_hasBumpCoords = other.m_hasBumpCoords;
+    m_hasKaCoords = other.m_hasKaCoords;
+	m_hasEmissiveCoords = other.m_hasEmissiveCoords;
 
     m_texturePath = std::move(other.m_texturePath);
     m_roughnessTexturePath = std::move(other.m_roughnessTexturePath);
     m_metallicTexturePath = std::move(other.m_metallicTexturePath); 
     m_normalTexturePath = std::move(other.m_normalTexturePath); 
-    m_bumpTexturePath = std::move(other.m_bumpTexturePath); 
+    m_KaTexturePath = std::move(other.m_KaTexturePath); 
+	m_emissiveTexturePath = std::move(other.m_emissiveTexturePath);
 
     m_ibo = other.m_ibo;
     m_vbo = other.m_vbo;
@@ -160,7 +169,8 @@ void GPUMesh::moveInto(GPUMesh&& other)
     other.m_hasRoughnessCoords = other.m_hasRoughnessCoords;
     other.m_hasMetallicCoords = other.m_hasMetallicCoords;
     other.m_hasNormalCoords = other.m_hasNormalCoords;
-    other.m_hasBumpCoords = other.m_hasBumpCoords;
+    other.m_hasKaCoords = other.m_hasKaCoords;
+	other.m_hasEmissiveCoords = other.m_hasEmissiveCoords;
     other.m_ibo = INVALID;
     other.m_vbo = INVALID;
     other.m_vao = INVALID;
