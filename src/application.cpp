@@ -586,6 +586,18 @@ public:
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrixStatic);
 
+            // Drawing the Curve
+            if (m_showCurve) {
+                m_lineShader.bind();
+                glm::mat4 mvp = m_projectionMatrix * m_viewMatrix * glm::mat4(1.0f);
+                glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+                glBindVertexArray(m_curveVAO);
+                glLineWidth(2.0f);
+                glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
+                glBindVertexArray(0);
+            }
+
 			// Draw skybox last
             drawSkybox(projectionMatrix, viewMatrix);
 
