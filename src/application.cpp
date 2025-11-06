@@ -388,7 +388,23 @@ public:
         drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
     }
 
-    
+    glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        glm::vec3 point = (1.0f - t) * (1.0f - t) * (1.0f - t) * p0;
+        point += 3 * (1.0f - t) * (1.0f - t) * t * p1;
+        point += 3 * (1.0f - t) * t * t * p2;
+        point += t * t * t * p3;
+        return point;
+    }
+
+    glm::vec3 cubicBezierTangent(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        // It is just derivative of the bezier curve.
+        glm::vec3 point = 3.0f * (1.0f - t) * (1.0f - t) * (p1 - p0) + 6.0f * (1.0f - t) * t * (p2 - p1) + 3.0f * t * t * (p3 - p2);
+        return point;
+    }
 
     void update()
     {
