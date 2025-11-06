@@ -25,6 +25,8 @@ uniform bool usePBRShading;
 uniform bool useAOTex;
 uniform bool useEmissive;
 
+uniform bool useNormalMapping;
+
 uniform bool hasTexCoords;
 uniform bool hasRoughnessCoords;
 uniform bool hasMetallicCoords;
@@ -55,8 +57,10 @@ uniform bool useEnvironmentMapping;
 in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
+in mat3 fragTBN;
 
 layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 bloomColor;
 
 float DGGX(vec3 N, vec3 H, float roughness); //d_ggx trouwbridge-reitz 
 float GGGX(vec3 N, vec3 V, vec3 H, float roughness); //g_ggx schlick
@@ -134,6 +138,14 @@ void main()
 {
     // Common vectors for both shading models
     vec3 N = normalize(fragNormal);
+    // ** for normal mapping
+    if (hasNormalCoords && useNormalMapping) {
+        vec3 mapNormal = texture(normalMap, fragTexCoord).rgb;
+        // transform from 0/1 range to -1/1
+        mapNormal = mapNormal * 2.0 - 1.0;
+        // Transform from tangent space to world space
+        N = normalize(fragTBN * mapNormal);
+    }
     // L defined per light below
     vec3 V = normalize(cameraPos - fragPosition);
     // H defined per light below
@@ -300,11 +312,17 @@ void main()
     if (useAOTex) ambient *= ka;
     vec3 color = finalColor + ambient;
 
-    if (useEmissive) color += ke;
+    if (useEmissive && hasEmissiveCoords) color += ke;
 
-    color = color / (color + vec3(1.0)); // tone mapping
-    color = pow(color, vec3(1.0/2.2)); // gamma correction
+    //color = color / (color + vec3(1.0)); // tone mapping
+    //color = pow(color, vec3(1.0/2.2)); // gamma correction
 
     //fragColor = vec4(N, 1.0);
     fragColor = vec4(color, 1.0);
+
+    if (useEmissive && hasEmissiveCoords) {
+        bloomColor = vec4(ke, 1.0);
+    } else {
+        bloomColor = vec4(0.0, 0.0, 0.0, 1.0);
+    }
 }
