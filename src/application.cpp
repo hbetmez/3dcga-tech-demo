@@ -502,7 +502,7 @@ public:
                 glm::vec3 cameraPos = characterPosition + glm::vec3(0.0f, m_camDistance, 0.0f);
                 glm::vec3 targetPos = characterPosition;
 
-                viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0.0f, 0.0f, -1.0f));
+                viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0.0f, 0.0f, 1.0f));
             }
 
             
