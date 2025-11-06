@@ -395,22 +395,21 @@ public:
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
             ImGui::Checkbox("Mouse Controls", &m_useMouseControls);
+            ImGui::Checkbox("Walking animation", &isWalking);
+            if (isWalking) m_useEmissive = true;
+            else m_useEmissive = false;
             
             ImGui::Separator();
             ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
-<<<<<<< Updated upstream
 			
-            ImGui::Checkbox("Walking animation", &isWalking);
-=======
             ImGui::Checkbox("AO Texture", &m_useAOTex);
 			ImGui::Checkbox("Emissive", &m_useEmissive);
 
             ImGui::Separator();
             ImGui::Text("Environment Mapping");
             ImGui::Checkbox("Use Environment Mapping", &m_useEnvironmentMapping);
->>>>>>> Stashed changes
 
             ImGui::Separator();
             ImGui::Text("Lights");
@@ -775,7 +774,7 @@ private:
 	bool m_useMaterial{ false };
     bool m_usePBR{ true };
 	bool m_useAOTex{ true };
-	bool m_useEmissive{ true };
+	bool m_useEmissive{ false };
     bool m_useMouseControls{ true };
 
     // Projection and view matrices for you to fill in and use
