@@ -186,6 +186,29 @@ public:
 
         glBindTexture(GL_TEXTURE_2D, 0);
 
+        // Curve Visualization Setup
+        ///////////////////////// start
+        for (int i = 0; i < 3; ++i) {
+            int base = i * 3;
+            for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
+                m_curvePoints.push_back(cubicBezier(
+                    m_curveControlPoints[base], m_curveControlPoints[base + 1],
+                    m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], t));
+            }
+        }
+
+        glGenVertexArrays(1, &m_curveVAO);
+        glBindVertexArray(m_curveVAO);
+
+        glGenBuffers(1, &m_curveVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_curveVBO);
+        glBufferData(GL_ARRAY_BUFFER, m_curvePoints.size() * sizeof(glm::vec3), m_curvePoints.data(), GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+        glBindVertexArray(0);
+        ///////////////////////// end
+ 
         // Mesh positions
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
     }
