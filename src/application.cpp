@@ -41,6 +41,9 @@ public:
                 onKeyReleased(key, mods);
         });
         m_window.registerMouseMoveCallback(std::bind(&Application::onMouseMove, this, std::placeholders::_1));
+
+        // scroll callback
+        m_window.registerScrollCallback([this](const glm::dvec2& offset) {onScroll(offset); });
         m_window.registerMouseButtonCallback([this](int button, int action, int mods) {
             if (action == GLFW_PRESS)
                 onMouseClicked(button, mods);
@@ -396,7 +399,7 @@ public:
             m_window.updateInput();
 
              // 0 = fixed, 1 = mouse trackball, 2 = thirdperson
-            const char* cameraModes[] = { "Fixed Camera", "Mouse Trackball", "Third Person" };
+            const char* cameraModes[] = { "Fixed Camera", "Mouse Trackball", "Third Person", "Top View"};
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
@@ -494,6 +497,12 @@ public:
                 glm::vec3 targetPos = characterPosition + glm::vec3(0, 0.5217, 0);
 
                 viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0, 1, 0));
+            } else if (cameraMode == 3) {
+                // top down static cam
+                glm::vec3 cameraPos = characterPosition + glm::vec3(0.0f, m_camDistance, 0.0f);
+                glm::vec3 targetPos = characterPosition;
+
+                viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0.0f, 0.0f, -1.0f));
             }
 
             
@@ -598,6 +607,13 @@ public:
             m_camPitch = glm::clamp(m_camPitch, glm::radians(-89.9f), glm::radians(89.9f));
         }
         m_lastMousePos = cursorPos;
+    }
+
+    void onScroll(const glm::dvec2& offset) {
+        if (cameraMode == 2 || cameraMode == 3) {
+            m_camDistance -= static_cast<float>(offset.y) * 0.3f; 
+            m_camDistance = glm::clamp(m_camDistance, 1.0f, 15.0f);
+        }
     }
         
     // If one of the mouse buttons is pressed this function will be called
