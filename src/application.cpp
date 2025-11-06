@@ -28,8 +28,44 @@ DISABLE_WARNINGS_POP()
 #define SHADOWTEX_WIDTH 1024
 #define SHADOWTEX_HEIGHT 1024
 
+struct BezierPoint {
+    float t;
+    float length; // from start / entire lenght (normalized)
+};
+
 class Application {
 public:
+
+    void updateBezierPoints() {
+        std::vector<glm::vec3> tempCurvePoints;
+        std::vector<BezierPoint> tempConstBezierLookup;
+
+        glm::vec3 prevPoint = cubicBezier(m_curveControlPoints[0], m_curveControlPoints[1], m_curveControlPoints[2], m_curveControlPoints[3], 0.0f);
+        tempCurvePoints.push_back(prevPoint);
+        tempConstBezierLookup.push_back({ 0.0f, 0.0f });
+        float sumLength = 0.0f;
+
+        for (int i = 0; i < 3; ++i) {
+            int base = i * 3;
+
+            
+            // divide each curve into 100 points
+            for (float t = 0.0f + 1.0f / curveSampleCount; t <= 1.0f; t += 1.0f / curveSampleCount) {
+                glm::vec3 tempPoint = cubicBezier(m_curveControlPoints[base], m_curveControlPoints[base + 1], m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], t);
+                sumLength += glm::length(tempPoint - prevPoint);
+                tempCurvePoints.push_back(tempPoint);
+                tempConstBezierLookup.push_back({ (i + t) / 3.0f, sumLength});
+                prevPoint = tempPoint;
+            }
+        }
+        // Table Lenth normalization
+        for (auto& tableEntry : tempConstBezierLookup) {
+            tableEntry.length = tableEntry.length / sumLength;
+        }
+        m_curvePoints = tempCurvePoints;
+        m_constBezierLookupTable = tempConstBezierLookup;
+
+    }
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41)
         , m_defaultTexture(RESOURCE_ROOT "resources/checkerboard.png")
@@ -150,6 +186,12 @@ public:
 			skyboxShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
 			m_skyboxShader = skyboxShaderBuilder.build();
 
+            // Line Shader for Curve
+            ShaderBuilder lineBuilder;
+            lineBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/line_vert.glsl");
+            lineBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/line_frag.glsl");
+            m_lineShader = lineBuilder.build();
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -186,8 +228,25 @@ public:
 
         glBindTexture(GL_TEXTURE_2D, 0);
 
+        // Curve Visualization Setup
+        ///////////////////////// start
+        updateBezierPoints();
+
+        glGenVertexArrays(1, &m_curveVAO);
+        glBindVertexArray(m_curveVAO);
+
+        glGenBuffers(1, &m_curveVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_curveVBO);
+        glBufferData(GL_ARRAY_BUFFER, m_curvePoints.size() * sizeof(glm::vec3), m_curvePoints.data(), GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+        glBindVertexArray(0);
+        ///////////////////////// end
+ 
         // Mesh positions
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
+        m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // Object that moves along the curve
     }
 
     void drawMesh(GPUMesh& mesh, const glm::mat4 &mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc, 
@@ -388,7 +447,53 @@ public:
         drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
     }
 
-    
+    glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        glm::vec3 point = (1.0f - t) * (1.0f - t) * (1.0f - t) * p0;
+        point += 3 * (1.0f - t) * (1.0f - t) * t * p1;
+        point += 3 * (1.0f - t) * t * t * p2;
+        point += t * t * t * p3;
+        return point;
+    }
+
+    glm::vec3 getOnCurvePoint(float t) {
+        t = glm::clamp(t, 0.0f, 1.0f);
+        int curveIdx = static_cast<int>(t * 3.0f);
+        if (curveIdx > 2) curveIdx = 2;
+
+        float newT = (t * 3.0f) - curveIdx;
+        int base = curveIdx * 3;
+
+        return cubicBezier(m_curveControlPoints[base], m_curveControlPoints[base + 1], m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], newT);
+
+    }
+
+    float lengthToT(float l)
+    {
+        if (l <= 0.0f) return 0.0f;
+        if (l >= 1.0f) return 1.0f;
+
+        for (size_t i = 1; i < m_constBezierLookupTable.size(); ++i) {
+            if (l <= m_constBezierLookupTable[i].length) {
+                const BezierPoint& prev = m_constBezierLookupTable[i - 1];
+                const BezierPoint& curr = m_constBezierLookupTable[i];
+                
+                // linear interpolation
+                float ratio = (l - prev.length) / (curr.length - prev.length);
+                return glm::mix(prev.t, curr.t, ratio);
+            }
+        }
+        
+    }
+
+    glm::vec3 cubicBezierTangent(const glm::vec3& p0, const glm::vec3& p1,
+        const glm::vec3& p2, const glm::vec3& p3, float t)
+    {
+        // It is just derivative of the bezier curve.
+        glm::vec3 point = 3.0f * (1.0f - t) * (1.0f - t) * (p1 - p0) + 6.0f * (1.0f - t) * t * (p2 - p1) + 3.0f * t * t * (p3 - p2);
+        return point;
+    }
 
     void update()
     {
@@ -404,7 +509,10 @@ public:
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
             ImGui::Combo("Camera Mode", &cameraMode, cameraModes, IM_ARRAYSIZE(cameraModes));
-                
+            ImGui::Checkbox("Show Bezier Curve", &m_showCurve);
+            ImGui::Checkbox("Move Along Curve", &m_moveAlongCurve);
+            ImGui::Checkbox("Const Speed", &m_constSpeedMoveCurve);
+            ImGui::SliderFloat("On-Curve Speed", &onCurveMoveSpeed, 0.0f, 0.2f, "%.3f");
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
@@ -477,11 +585,21 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
+            if (m_moveAlongCurve) {
+                float t = fmod(currentTime * onCurveMoveSpeed, 1.0f);
+                if (m_constSpeedMoveCurve) {
+                    t = lengthToT(t);
+                }
+                glm::vec3 onCurvePos = getOnCurvePoint(t);
+                m_meshesPositions[1] = onCurvePos;
+            }
+
 			/// use trackball logic to get view and projection matrices based on mouse input
             glm::mat4 projectionMatrix = m_projectionMatrix;
             glm::mat4 viewMatrix = m_viewMatrix;
 
             glm::vec3 characterPosition = !m_meshesPositions.empty() ? m_meshesPositions[0] : glm::vec3(0.0f);
+            glm::vec3 objectOnCurvePos = m_meshesPositions.size() >= 2 ? m_meshesPositions[1] : glm::vec3(0.0f);
 
             if (cameraMode == 1) {
                 projectionMatrix = m_trackball.projectionMatrix();
@@ -507,8 +625,15 @@ public:
 
             
             glm::mat4 modelMatrixCharacter = glm::translate(glm::mat4(1.0f), characterPosition);
+            glm::mat4 modelMatrixCurveObj = glm::translate(glm::mat4(1.0f), objectOnCurvePos);
 
-            const glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrixCharacter;
+            // Character MVP
+            const glm::mat4 mvpMatrixCharacter = projectionMatrix * viewMatrix * modelMatrixCharacter;
+
+            // Object on Curve
+            const glm::mat4 mvpMatrixCurveObj = projectionMatrix * viewMatrix * modelMatrixCurveObj;
+
+            // Static MVP
             const glm::mat4 mvpMatrixStatic = projectionMatrix * viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
@@ -565,10 +690,27 @@ public:
             }
 
             if (!isWalking) walkStartTime = currentTime;
-            CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+            CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+            // Temporary using character instead of drone
+            CharacterWalkAnimation(mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+            
 
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrixStatic);
+
+            // Drawing the Curve
+            if (m_showCurve) {
+                m_lineShader.bind();
+                glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvpMatrixStatic));
+
+                glBindVertexArray(m_curveVAO);
+                glLineWidth(10.0f);
+                glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
+                glBindVertexArray(0);
+            }
+            
 
 			// Draw skybox last
             drawSkybox(projectionMatrix, viewMatrix);
@@ -848,6 +990,32 @@ private:
     float sensitivity = 0.01f;
     
     std::vector<glm::vec3> m_meshesPositions;
+
+    // Curve instances
+    std::vector<glm::vec3> m_curveControlPoints =
+    {
+        {0, 0, 0},   // curve 1 p0 
+        {1, 0.2, 1},   // curve 1 p1 
+        {-1, 0.4, 1},   // curve 1 p2 
+        {-1, 0.6, -1},  // curve 1 p3, curve 2 p0 
+        {1, 0.8, -1}, // curve 2 p1 
+        {1, 1, 1},  // curve 2 p2 
+        {-1, 1.2, 1},   // curve 2 p3, curve 3 p0 
+        {-1, 1.4, -1},   // curve 3 p1 
+        {1, 1.6, -1},   // curve 3 p2 
+        {1, 1.8, 1}    // curve 3 p3 
+    };
+    bool m_showCurve = false;
+    bool m_moveAlongCurve = true;
+    bool m_constSpeedMoveCurve = false;
+    
+    Shader m_lineShader;
+    GLuint m_curveVAO = 0, m_curveVBO = 0;
+    std::vector<glm::vec3> m_curvePoints;
+    std::vector<BezierPoint> m_constBezierLookupTable;
+    float curveSampleCount = 100.0f;
+    float onCurveMoveSpeed = 0.06;
+
 };
 
 int main()
