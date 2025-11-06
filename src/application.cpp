@@ -28,8 +28,44 @@ DISABLE_WARNINGS_POP()
 #define SHADOWTEX_WIDTH 1024
 #define SHADOWTEX_HEIGHT 1024
 
+struct BezierPoint {
+    float t;
+    float length; // from start / entire lenght (normalized)
+};
+
 class Application {
 public:
+
+    void updateBezierPoints() {
+        std::vector<glm::vec3> tempCurvePoints;
+        std::vector<BezierPoint> tempConstBezierLookup;
+
+        glm::vec3 prevPoint = cubicBezier(m_curveControlPoints[0], m_curveControlPoints[1], m_curveControlPoints[2], m_curveControlPoints[3], 0.0f);
+        tempCurvePoints.push_back(prevPoint);
+        tempConstBezierLookup.push_back({ 0.0f, 0.0f });
+        float sumLength = 0.0f;
+
+        for (int i = 0; i < 3; ++i) {
+            int base = i * 3;
+
+            
+            // divide each curve into 100 points
+            for (float t = 0.0f + 1.0f / curveSampleCount; t <= 1.0f; t += 1.0f / curveSampleCount) {
+                glm::vec3 tempPoint = cubicBezier(m_curveControlPoints[base], m_curveControlPoints[base + 1], m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], t);
+                sumLength += glm::length(tempPoint - prevPoint);
+                tempCurvePoints.push_back(tempPoint);
+                tempConstBezierLookup.push_back({ (i + t) / 3.0f, sumLength});
+                prevPoint = tempPoint;
+            }
+        }
+        // Table Lenth normalization
+        for (auto& tableEntry : tempConstBezierLookup) {
+            tableEntry.length = tableEntry.length / sumLength;
+        }
+        m_curvePoints = tempCurvePoints;
+        m_constBezierLookupTable = tempConstBezierLookup;
+
+    }
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41)
         , m_defaultTexture(RESOURCE_ROOT "resources/checkerboard.png")
@@ -194,14 +230,7 @@ public:
 
         // Curve Visualization Setup
         ///////////////////////// start
-        for (int i = 0; i < 3; ++i) {
-            int base = i * 3;
-            for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
-                m_curvePoints.push_back(cubicBezier(
-                    m_curveControlPoints[base], m_curveControlPoints[base + 1],
-                    m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], t));
-            }
-        }
+        updateBezierPoints();
 
         glGenVertexArrays(1, &m_curveVAO);
         glBindVertexArray(m_curveVAO);
@@ -427,6 +456,28 @@ public:
         return point;
     }
 
+    glm::vec3 getCurveCoord(float t) {
+
+    }
+
+    float lengthToT(float l)
+    {
+        if (l <= 0.0f) return 0.0f;
+        if (l >= 1.0f) return 1.0f;
+
+        for (size_t i = 1; i < m_constBezierLookupTable.size(); ++i) {
+            if (l <= m_constBezierLookupTable[i].length) {
+                const BezierPoint& prev = m_constBezierLookupTable[i - 1];
+                const BezierPoint& curr = m_constBezierLookupTable[i];
+                
+                // linear interpolation
+                float ratio = (l - prev.length) / (curr.length - prev.length);
+                return glm::mix(prev.t, curr.t, ratio);
+            }
+        }
+        
+    }
+
     glm::vec3 cubicBezierTangent(const glm::vec3& p0, const glm::vec3& p1,
         const glm::vec3& p2, const glm::vec3& p3, float t)
     {
@@ -450,6 +501,7 @@ public:
             ImGui::Begin("Window");
             ImGui::Combo("Camera Mode", &cameraMode, cameraModes, IM_ARRAYSIZE(cameraModes));
             ImGui::Checkbox("Show Bezier Curve", &m_showCurve);
+            ImGui::Checkbox("Move Along Curve", &m_moveAlongCurve);
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
@@ -618,13 +670,17 @@ public:
             // Drawing the Curve
             if (m_showCurve) {
                 m_lineShader.bind();
-                glm::mat4 mvp = m_projectionMatrix * m_viewMatrix * glm::mat4(1.0f);
-                glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+                glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvpMatrixStatic));
 
                 glBindVertexArray(m_curveVAO);
                 glLineWidth(10.0f);
                 glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
                 glBindVertexArray(0);
+            }
+            if (m_moveAlongCurve) {
+                float l = fmod(currentTime * onCurveMoveSpeed, 1.0f);
+                float t = lengthToT(l);
+                
             }
 
 			// Draw skybox last
@@ -909,21 +965,26 @@ private:
     // Curve instances
     std::vector<glm::vec3> m_curveControlPoints =
     {
-        {0, 1, 5},   // curve 1 p0 
-        {3, 3, 3},   // curve 1 p1 
-        {6, 3, 0},   // curve 1 p2 
-        {9, 1, -2},  // curve 1 p3, curve 2 p0 
-        {12, -1, -1}, // curve 2 p1 
-        {15, -2, 2},  // curve 2 p2 
-        {18, 0, 5},   // curve 2 p3, curve 3 p0 
-        {21, 2, 7},   // curve 3 p1 
-        {24, 3, 5},   // curve 3 p2 
-        {27, 1, 2}    // curve 3 p3 
+        {0, 0, 0},   // curve 1 p0 
+        {1, 0.2, 1},   // curve 1 p1 
+        {-1, 0.4, 1},   // curve 1 p2 
+        {-1, 0.6, -1},  // curve 1 p3, curve 2 p0 
+        {1, 0.8, -1}, // curve 2 p1 
+        {1, 1, 1},  // curve 2 p2 
+        {-1, 1.2, 1},   // curve 2 p3, curve 3 p0 
+        {-1, 1.4, -1},   // curve 3 p1 
+        {1, 1.6, -1},   // curve 3 p2 
+        {1, 1.8, 1}    // curve 3 p3 
     };
-    bool m_showCurve = true;
+    bool m_showCurve = false;
+    bool m_moveAlongCurve = true;
     Shader m_lineShader;
     GLuint m_curveVAO = 0, m_curveVBO = 0;
     std::vector<glm::vec3> m_curvePoints;
+    std::vector<BezierPoint> m_constBezierLookupTable;
+    float curveSampleCount = 100.0f;
+    float onCurveMoveSpeed = 0.02;
+
 };
 
 int main()
