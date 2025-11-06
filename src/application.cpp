@@ -182,6 +182,9 @@ public:
         }
 
         glBindTexture(GL_TEXTURE_2D, 0);
+
+        // Mesh positions
+        m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
     }
 
     void drawMesh(GPUMesh& mesh, const glm::mat4 &mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc, 
@@ -382,7 +385,7 @@ public:
         drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
     }
 
-
+    
 
     void update()
     {
@@ -392,9 +395,14 @@ public:
             // Put your real-time logic and rendering in here
             m_window.updateInput();
 
+             // 0 = fixed, 1 = mouse trackball, 2 = thirdperson
+            const char* cameraModes[] = { "Fixed Camera", "Mouse Trackball", "Third Person" };
+
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
-            ImGui::Checkbox("Mouse Controls", &m_useMouseControls);
+            ImGui::Combo("Camera Mode", &cameraMode, cameraModes, IM_ARRAYSIZE(cameraModes));
+                
+            
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
             else m_useEmissive = false;
@@ -469,11 +477,30 @@ public:
 			/// use trackball logic to get view and projection matrices based on mouse input
             glm::mat4 projectionMatrix = m_projectionMatrix;
             glm::mat4 viewMatrix = m_viewMatrix;
-            if (m_useMouseControls) {
+
+            glm::vec3 characterPosition = !m_meshesPositions.empty() ? m_meshesPositions[0] : glm::vec3(0.0f);
+
+            if (cameraMode == 1) {
                 projectionMatrix = m_trackball.projectionMatrix();
                 viewMatrix = m_trackball.viewMatrix();
+            } else if (cameraMode == 2) {
+                // third person
+                glm::vec3 offset;
+                offset.x = m_camDistance * cos(m_camPitch) * sin(m_camYaw);
+                offset.y = m_camDistance * sin(m_camPitch);
+                offset.z = m_camDistance * cos(m_camPitch) * cos(m_camYaw);
+
+                glm::vec3 cameraPos = characterPosition + offset;
+                glm::vec3 targetPos = characterPosition + glm::vec3(0, 0.5217, 0);
+
+                viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0, 1, 0));
             }
-            const glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * m_modelMatrix;
+
+            
+            glm::mat4 modelMatrixCharacter = glm::translate(glm::mat4(1.0f), characterPosition);
+
+            const glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrixCharacter;
+            const glm::mat4 mvpMatrixStatic = projectionMatrix * viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
@@ -532,7 +559,7 @@ public:
             CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
 			// Draw lights as squares
-			drawLightsAsSquares(mvpMatrix);
+			drawLightsAsSquares(mvpMatrixStatic);
 
 			// Draw skybox last
             drawSkybox(projectionMatrix, viewMatrix);
@@ -561,7 +588,16 @@ public:
     // If the mouse is moved this function will be called with the x, y screen-coordinates of the mouse
     void onMouseMove(const glm::dvec2& cursorPos)
     {
-        //std::cout << "Mouse at position: " << cursorPos.x << " " << cursorPos.y << std::endl;
+        if (cameraMode == 2) {
+            float dx = static_cast<float>(cursorPos.x - m_lastMousePos.x);
+            float dy = static_cast<float>(cursorPos.y - m_lastMousePos.y);
+
+            m_camYaw += dx * sensitivity;
+            m_camPitch -= dy * sensitivity;
+
+            m_camPitch = glm::clamp(m_camPitch, glm::radians(-89.9f), glm::radians(89.9f));
+        }
+        m_lastMousePos = cursorPos;
     }
         
     // If one of the mouse buttons is pressed this function will be called
@@ -775,7 +811,7 @@ private:
     bool m_usePBR{ true };
 	bool m_useAOTex{ true };
 	bool m_useEmissive{ false };
-    bool m_useMouseControls{ true };
+    int cameraMode = 0;
 
     // Projection and view matrices for you to fill in and use
     //glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
@@ -787,6 +823,15 @@ private:
 
     bool isWalking = false;
     float walkStartTime = 0.0f;
+
+    // Third-person camera parameters
+    float m_camYaw = glm::radians(180.0f);   
+    float m_camPitch = glm::radians(10.0f);  
+    float m_camDistance = 2.0f;             
+    glm::vec2 m_lastMousePos{ 0.0f };
+    float sensitivity = 0.01f;
+    
+    std::vector<glm::vec3> m_meshesPositions;
 };
 
 int main()
