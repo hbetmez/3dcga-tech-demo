@@ -899,6 +899,26 @@ private:
     float sensitivity = 0.01f;
     
     std::vector<glm::vec3> m_meshesPositions;
+
+    // Curve instances
+    std::vector<glm::vec3> m_curveControlPoints =
+    {
+        {0, 1, 5},   // curve 1 p0 
+        {3, 3, 3},   // curve 1 p1 
+        {6, 3, 0},   // curve 1 p2 
+        {9, 1, -2},  // curve 1 p3, curve 2 p0 
+        {12, -1, -1}, // curve 2 p1 
+        {15, -2, 2},  // curve 2 p2 
+        {18, 0, 5},   // curve 2 p3, curve 3 p0 
+        {21, 2, 7},   // curve 3 p1 
+        {24, 3, 5},   // curve 3 p2 
+        {27, 1, 2}    // curve 3 p3 
+    };
+    bool m_showCurve = true;
+    bool m_moveAlongCurve = true;
+    Shader m_lineShader;
+    GLuint m_curveVAO = 0, m_curveVBO = 0;
+    std::vector<glm::vec3> m_curvePoints;
 };
 
 int main()
