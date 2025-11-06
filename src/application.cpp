@@ -150,6 +150,12 @@ public:
 			skyboxShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
 			m_skyboxShader = skyboxShaderBuilder.build();
 
+            // Line Shader for Curve
+            ShaderBuilder lineBuilder;
+            lineBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/line_vert.glsl");
+            lineBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/line_frag.glsl");
+            m_lineShader = lineBuilder.build();
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -443,7 +449,7 @@ public:
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
             ImGui::Combo("Camera Mode", &cameraMode, cameraModes, IM_ARRAYSIZE(cameraModes));
-                
+            ImGui::Checkbox("Show Bezier Curve", &m_showCurve);
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
@@ -616,7 +622,7 @@ public:
                 glUniformMatrix4fv(m_lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
 
                 glBindVertexArray(m_curveVAO);
-                glLineWidth(2.0f);
+                glLineWidth(10.0f);
                 glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
                 glBindVertexArray(0);
             }
@@ -915,7 +921,6 @@ private:
         {27, 1, 2}    // curve 3 p3 
     };
     bool m_showCurve = true;
-    bool m_moveAlongCurve = true;
     Shader m_lineShader;
     GLuint m_curveVAO = 0, m_curveVBO = 0;
     std::vector<glm::vec3> m_curvePoints;
