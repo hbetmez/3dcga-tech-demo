@@ -50,7 +50,8 @@ public:
     bool hasRoughnessCoords() const;
     bool hasMetallicCoords() const;
     bool hasNormalCoords() const;
-    bool hasBumpCoords() const;
+    bool hasKaCoords() const;
+	bool hasEmissiveCoords() const;
 
     // getter for texture paths
     std::filesystem::path m_texturePath;
@@ -58,7 +59,8 @@ public:
     std::filesystem::path m_metallicTexturePath;
 
     std::filesystem::path m_normalTexturePath;
-    std::filesystem::path m_bumpTexturePath;
+    std::filesystem::path m_KaTexturePath;
+	std::filesystem::path m_emissiveTexturePath;
 
     // Bind VAO and call glDrawElements.
     void draw(const Shader& drawingShader);
@@ -75,7 +77,8 @@ private:
     bool m_hasRoughnessCoords{ false };
     bool m_hasMetallicCoords{ false };
     bool m_hasNormalCoords{ false };
-    bool m_hasBumpCoords{ false };
+    bool m_hasKaCoords{ false };
+	bool m_hasEmissiveCoords{ false };
     GLuint m_ibo { INVALID };
     GLuint m_vbo { INVALID };
     GLuint m_vao { INVALID };

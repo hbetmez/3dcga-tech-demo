@@ -18,15 +18,19 @@ uniform sampler2D colorMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D metallicMap;
 uniform sampler2D normalMap;
-uniform sampler2D bumpMap;
+uniform sampler2D kaMap;
+uniform sampler2D emissiveMap;
 
 uniform bool usePBRShading;
+uniform bool useAOTex;
+uniform bool useEmissive;
 
 uniform bool hasTexCoords;
 uniform bool hasRoughnessCoords;
 uniform bool hasMetallicCoords;
 uniform bool hasNormalCoords;
-uniform bool hasBumpCoords;
+uniform bool hasKaCoords;
+uniform bool hasEmissiveCoords;
 uniform bool useMaterial;
 
 uniform vec3 lightPos;
@@ -43,6 +47,10 @@ uniform bool usePCF;
 uniform int PCFWindowSize;
 uniform sampler2D texShadow[MAX_LIGHTS]; 
 uniform mat4 lightMVPs[MAX_LIGHTS];
+
+// ** for environment map
+uniform samplerCube environmentMap;
+uniform bool useEnvironmentMapping;
 
 in vec3 fragPosition;
 in vec3 fragNormal;
@@ -129,6 +137,12 @@ void main()
     // L defined per light below
     vec3 V = normalize(cameraPos - fragPosition);
     // H defined per light below
+
+    // *** environment mapping
+    vec3 I = normalize(fragPosition - cameraPos);
+    vec3 R = reflect(I, normalize(fragNormal));
+    // Sample from cuAbemap
+    vec3 reflection = texture(environmentMap, R).rgb;
         
     vec3 baseColor; // Sample textures
     if (hasTexCoords && !useMaterial) baseColor = texture(colorMap, fragTexCoord).rgb; else baseColor = kd;
@@ -138,6 +152,12 @@ void main()
     
     float metal; // Sample metallic
     if (hasMetallicCoords && !useMaterial) metal = texture(metallicMap, fragTexCoord).r; else metal = metallic;
+
+    float ka;
+    if (hasKaCoords && !useMaterial) ka = texture(kaMap, fragTexCoord).r; else ka = 1.0;
+
+    vec3 ke;
+    if (hasEmissiveCoords) ke = texture(emissiveMap, fragTexCoord).rgb; else ke = vec3(0.0);
 
     // Sample normal map
     if (hasNormalCoords) {
@@ -273,12 +293,17 @@ void main()
         }
     }
 
-    vec3 ambient = vec3(0.03) * baseColor; // * ao
+    // ** environment mapping
+    if (useEnvironmentMapping) finalColor = mix(finalColor, reflection, metal); // add some environment reflection
+
+    vec3 ambient = vec3(0.01) * baseColor;
+    if (useAOTex) ambient *= ka;
     vec3 color = finalColor + ambient;
+
+    if (useEmissive) color += ke;
 
     color = color / (color + vec3(1.0)); // tone mapping
     color = pow(color, vec3(1.0/2.2)); // gamma correction
-
 
     //fragColor = vec4(N, 1.0);
     fragColor = vec4(color, 1.0);

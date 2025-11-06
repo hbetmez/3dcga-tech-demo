@@ -41,7 +41,8 @@ struct Material {
 	std::filesystem::path roughnessTexturePath;
 
 	std::filesystem::path normalTexturePath;
-	std::filesystem::path bumpTexturePath;
+	std::filesystem::path kaTexturePath;
+	std::filesystem::path emissiveTexturePath;
 };
 
 struct Mesh {
