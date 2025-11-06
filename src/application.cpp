@@ -246,6 +246,7 @@ public:
  
         // Mesh positions
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
+        m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // Object that moves along the curve
     }
 
     void drawMesh(GPUMesh& mesh, const glm::mat4 &mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc, 
@@ -456,7 +457,15 @@ public:
         return point;
     }
 
-    glm::vec3 getCurveCoord(float t) {
+    glm::vec3 getOnCurvePoint(float t) {
+        t = glm::clamp(t, 0.0f, 1.0f);
+        int curveIdx = static_cast<int>(t * 3.0f);
+        if (curveIdx > 2) curveIdx = 2;
+
+        float newT = (t * 3.0f) - curveIdx;
+        int base = curveIdx * 3;
+
+        return cubicBezier(m_curveControlPoints[base], m_curveControlPoints[base + 1], m_curveControlPoints[base + 2], m_curveControlPoints[base + 3], newT);
 
     }
 
@@ -502,6 +511,8 @@ public:
             ImGui::Combo("Camera Mode", &cameraMode, cameraModes, IM_ARRAYSIZE(cameraModes));
             ImGui::Checkbox("Show Bezier Curve", &m_showCurve);
             ImGui::Checkbox("Move Along Curve", &m_moveAlongCurve);
+            ImGui::Checkbox("Const Speed", &m_constSpeedMoveCurve);
+            ImGui::SliderFloat("On-Curve Speed", &onCurveMoveSpeed, 0.0f, 0.2f, "%.3f");
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
@@ -574,11 +585,21 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
+            if (m_moveAlongCurve) {
+                float t = fmod(currentTime * onCurveMoveSpeed, 1.0f);
+                if (m_constSpeedMoveCurve) {
+                    t = lengthToT(t);
+                }
+                glm::vec3 onCurvePos = getOnCurvePoint(t);
+                m_meshesPositions[1] = onCurvePos;
+            }
+
 			/// use trackball logic to get view and projection matrices based on mouse input
             glm::mat4 projectionMatrix = m_projectionMatrix;
             glm::mat4 viewMatrix = m_viewMatrix;
 
             glm::vec3 characterPosition = !m_meshesPositions.empty() ? m_meshesPositions[0] : glm::vec3(0.0f);
+            glm::vec3 objectOnCurvePos = m_meshesPositions.size() >= 2 ? m_meshesPositions[1] : glm::vec3(0.0f);
 
             if (cameraMode == 1) {
                 projectionMatrix = m_trackball.projectionMatrix();
@@ -604,8 +625,15 @@ public:
 
             
             glm::mat4 modelMatrixCharacter = glm::translate(glm::mat4(1.0f), characterPosition);
+            glm::mat4 modelMatrixCurveObj = glm::translate(glm::mat4(1.0f), objectOnCurvePos);
 
-            const glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrixCharacter;
+            // Character MVP
+            const glm::mat4 mvpMatrixCharacter = projectionMatrix * viewMatrix * modelMatrixCharacter;
+
+            // Object on Curve
+            const glm::mat4 mvpMatrixCurveObj = projectionMatrix * viewMatrix * modelMatrixCurveObj;
+
+            // Static MVP
             const glm::mat4 mvpMatrixStatic = projectionMatrix * viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
@@ -662,7 +690,12 @@ public:
             }
 
             if (!isWalking) walkStartTime = currentTime;
-            CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+            CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+            // Temporary using character instead of drone
+            CharacterWalkAnimation(mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+            
 
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrixStatic);
@@ -677,11 +710,7 @@ public:
                 glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
                 glBindVertexArray(0);
             }
-            if (m_moveAlongCurve) {
-                float l = fmod(currentTime * onCurveMoveSpeed, 1.0f);
-                float t = lengthToT(l);
-                
-            }
+            
 
 			// Draw skybox last
             drawSkybox(projectionMatrix, viewMatrix);
@@ -978,12 +1007,14 @@ private:
     };
     bool m_showCurve = false;
     bool m_moveAlongCurve = true;
+    bool m_constSpeedMoveCurve = false;
+    
     Shader m_lineShader;
     GLuint m_curveVAO = 0, m_curveVBO = 0;
     std::vector<glm::vec3> m_curvePoints;
     std::vector<BezierPoint> m_constBezierLookupTable;
     float curveSampleCount = 100.0f;
-    float onCurveMoveSpeed = 0.02;
+    float onCurveMoveSpeed = 0.06;
 
 };
 
