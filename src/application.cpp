@@ -1008,7 +1008,7 @@ private:
     // Curve instances
     std::vector<glm::vec3> m_curveControlPoints =
     {
-        {0, 0, 0},   // curve 1 p0 
+        {1, 1.8, 1},   // curve 1 p0 
         {1, 0.2, 1},   // curve 1 p1 
         {-1, 0.4, 1},   // curve 1 p2 
         {-1, 0.6, -1},  // curve 1 p3, curve 2 p0 
