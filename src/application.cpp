@@ -157,14 +157,24 @@ public:
         m_skyboxTexture = loadCubemap(faces);
 
 
+        // Character Meshes
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        std::filesystem::path fileName{ "robo" }; //.obj and .mtl name should be same as folder name
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileName / (fileName.string() + ".obj"));
+        std::filesystem::path fileNameCharacter{ "robo" }; //.obj and .mtl name should be same as folder name
+        m_meshesCharacter = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileNameCharacter / (fileNameCharacter.string() + ".obj"));
 
-        std::cout << "Meshes: " << m_meshes.size() << std::endl;
+        std::cout << "Character Meshes: " << m_meshesCharacter.size() << std::endl;
 
-        loadAllTextures(fileName);
+        loadAllTextures(fileNameCharacter, m_meshesCharacter);
+
+        //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
+        //std::cout << "Loaded cpu meshes" << std::endl;
+        std::filesystem::path fileNameUfo{ "UFO_Empty_2" }; //.obj and .mtl name should be same as folder name
+        m_meshesUfo = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileNameUfo / (fileNameUfo.string() + ".obj"));
+
+        std::cout << "Ufo Meshes: " << m_meshesUfo.size() << std::endl;
+
+        loadAllTextures(fileNameUfo, m_meshesUfo);
 
         try {
             ShaderBuilder defaultBuilder;
@@ -387,7 +397,7 @@ public:
         const float armY = 0.6023f;
 
         // body
-        drawMesh(m_meshes[0], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[0], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
 
 
@@ -406,9 +416,9 @@ public:
                 * glm::rotate(glm::mat4(1.0f), -legSwingParam, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -legY, 0.0f));
         }
-
-        drawMesh(m_meshes[3], viewProjMatrix * rightLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[4], viewProjMatrix * leftLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        
+        drawMesh(m_meshesCharacter[3], viewProjMatrix * rightLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[4], viewProjMatrix * leftLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Foots
         glm::mat4 rightFootTransform = glm::mat4(1.0f);
@@ -425,9 +435,9 @@ public:
                 * glm::rotate(glm::mat4(1.0f), 0.5f * legSwingParam, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
         }
-
-        drawMesh(m_meshes[1], viewProjMatrix * rightFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[2], viewProjMatrix * leftFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        
+        drawMesh(m_meshesCharacter[1], viewProjMatrix * rightFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[2], viewProjMatrix * leftFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // arms
         glm::mat4 rightArmTransform = glm::mat4(1.0f);
@@ -443,9 +453,9 @@ public:
                 * glm::rotate(glm::mat4(1.0f), -armSwingParam, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -armY, 0.0f));
         }
-
-        drawMesh(m_meshes[7], viewProjMatrix * rightArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[8], viewProjMatrix * leftArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        
+        drawMesh(m_meshesCharacter[7], viewProjMatrix * rightArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[8], viewProjMatrix * leftArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Hands
         glm::mat4 rightHandTransform = glm::mat4(1.0f);
@@ -461,12 +471,12 @@ public:
                 * glm::rotate(glm::mat4(1.0f), -0.5f * armSwingParam, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
         }
-
-        drawMesh(m_meshes[5], viewProjMatrix * rightHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[6], viewProjMatrix * leftHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        
+        drawMesh(m_meshesCharacter[5], viewProjMatrix * rightHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[6], viewProjMatrix * leftHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Head
-        drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
     }
 
     glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
@@ -537,9 +547,9 @@ public:
             ImGui::SliderFloat("On-Curve Speed", &onCurveMoveSpeed, 0.0f, 0.2f, "%.3f");
             
             ImGui::Checkbox("Walking animation", &isWalking);
-            //if (isWalking) m_useEmissive = true;
+            if (isWalking) m_useEmissive = true;
             //else m_useEmissive = false;
-
+            
             ImGui::Separator();
             ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
@@ -701,7 +711,7 @@ public:
                 glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
 
                 // Render each mesh
-                for (GPUMesh& mesh : m_meshes) {
+                for (GPUMesh& mesh : m_meshesCharacter) {
                     mesh.draw(m_shadowShader);
                 }
 
@@ -731,7 +741,10 @@ public:
             CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
             // Temporary using character instead of drone
-            CharacterWalkAnimation(mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+			for (size_t i = 0; i < m_meshesUfo.size(); ++i) {
+				drawMesh(m_meshesUfo[i], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
+			}
+            //drawMesh(m_meshesUfo[0], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
 
             
 
@@ -847,7 +860,7 @@ public:
     {
         //std::cout << "Released mouse button: " << button << std::endl;
     }
-
+  
     void onFramebufferSizeChanged(int width, int height) {
         glDeleteFramebuffers(1, &m_hdrFBO);
         glDeleteTextures(2, m_colorBuffers);
@@ -857,9 +870,9 @@ public:
         setupBloomFramebuffers(width, height);
     }
 
-    void loadAllTextures(const std::filesystem::path& fileName) {
-        for (size_t i = 0; i < m_meshes.size(); ++i) {
-            const GPUMesh& mesh = m_meshes[i];
+    void loadAllTextures(const std::filesystem::path& fileName, const std::vector<GPUMesh>& meshes) {
+        for (size_t i = 0; i < meshes.size(); ++i) {
+            const GPUMesh& mesh = meshes[i];
             std::filesystem::path kdTexPath = mesh.m_texturePath;
             std::filesystem::path roughnessTexPath = mesh.m_roughnessTexturePath;
             std::filesystem::path metallicTexPath = mesh.m_metallicTexturePath;
@@ -867,7 +880,7 @@ public:
             std::filesystem::path kaTexPath = mesh.m_KaTexturePath;
             std::filesystem::path emissiveTexPath = mesh.m_emissiveTexturePath;
 
-            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
+            //std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
 
             //add textures to map, then use those
             if (!kdTexPath.empty()) {
@@ -1126,7 +1139,8 @@ private:
 
     LightManager m_lightManager;
 
-    std::vector<GPUMesh> m_meshes;
+    std::vector<GPUMesh> m_meshesCharacter;
+    std::vector<GPUMesh> m_meshesUfo;
     Texture m_defaultTexture;
     std::map<std::filesystem::path, Texture> texturesMap;
     bool m_useMaterial{ false };
@@ -1177,7 +1191,7 @@ private:
     // Curve instances
     std::vector<glm::vec3> m_curveControlPoints =
     {
-        {0, 0, 0},   // curve 1 p0 
+        {1, 1.8, 1},   // curve 1 p0 
         {1, 0.2, 1},   // curve 1 p1 
         {-1, 0.4, 1},   // curve 1 p2 
         {-1, 0.6, -1},  // curve 1 p3, curve 2 p0 
