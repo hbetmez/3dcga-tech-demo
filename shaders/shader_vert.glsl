@@ -9,10 +9,13 @@ uniform mat3 normalModelMatrix;
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 texCoord;
+layout(location = 3) in vec3 tangent;
+layout(location = 4) in vec3 bitangent;
 
 out vec3 fragPosition;
 out vec3 fragNormal;
 out vec2 fragTexCoord;
+out mat3 fragTBN;
 
 void main()
 {
@@ -21,4 +24,14 @@ void main()
     fragPosition    = (modelMatrix * vec4(position, 1)).xyz;
     fragNormal      = normalModelMatrix * normal;
     fragTexCoord    = texCoord;
+
+    vec3 T = normalize(normalModelMatrix * tangent);
+    vec3 B = normalize(normalModelMatrix * bitangent);
+    vec3 N = normalize(fragNormal);
+    
+    // re orthogonolise with gram-schmidt
+    T = normalize(T - dot(T, N) * N);
+    B = cross(N, T);
+    
+    fragTBN = mat3(T, B, N);
 }

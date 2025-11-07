@@ -1,0 +1,34 @@
+# Blender MTL File: 'Modular UFO 2.8_Baked_Animations.blend'
+# Material Count: 2
+
+newmtl Material.002
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+map_Kd UFO_color.jpg
+map_Ks UFO_metalness.jpg
+map_Ke UFO_emi_2.jpg
+map_Pm UFO_metalness.jpg
+map_Pr UFO_rough.jpg
+norm UFO_nmap.jpg
+illum 2
+
+newmtl UFO
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+map_Kd UFO_color.jpg
+map_Ks UFO_metalness.jpg
+map_Ke UFO_emi_2.jpg
+map_Pm UFO_metalness.jpg
+map_Pr UFO_rough.jpg
+norm UFO_nmap.jpg
+illum 2

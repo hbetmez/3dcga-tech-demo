@@ -78,7 +78,7 @@ public:
                 onKeyPressed(key, mods);
             else if (action == GLFW_RELEASE)
                 onKeyReleased(key, mods);
-        });
+            });
         m_window.registerMouseMoveCallback(std::bind(&Application::onMouseMove, this, std::placeholders::_1));
 
         // scroll callback
@@ -88,9 +88,12 @@ public:
                 onMouseClicked(button, mods);
             else if (action == GLFW_RELEASE)
                 onMouseReleased(button, mods);
-        });
+            });
+		m_window.registerWindowResizeCallback([this](const glm::ivec2& newSize) {
+			onFramebufferSizeChanged(newSize.x, newSize.y);
+			});
 
-		std::string skyboxPath = RESOURCE_ROOT "resources/space/";
+        std::string skyboxPath = RESOURCE_ROOT "resources/space/";
         std::vector<std::string> faces{
             skyboxPath + "right.png",
             skyboxPath + "left.png",
@@ -157,14 +160,24 @@ public:
         m_skyboxTexture = loadCubemap(faces);
 
 
+        // Character Meshes
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        std::filesystem::path fileName{ "robo" }; //.obj and .mtl name should be same as folder name
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileName / (fileName.string() + ".obj"));
+        std::filesystem::path fileNameCharacter{ "robo" }; //.obj and .mtl name should be same as folder name
+        m_meshesCharacter = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileNameCharacter / (fileNameCharacter.string() + ".obj"));
 
-        std::cout << "Meshes: " << m_meshes.size() << std::endl;
+        std::cout << "Character Meshes: " << m_meshesCharacter.size() << std::endl;
 
-        loadAllTextures(fileName);
+        loadAllTextures(fileNameCharacter, m_meshesCharacter);
+
+        //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
+        //std::cout << "Loaded cpu meshes" << std::endl;
+        std::filesystem::path fileNameUfo{ "UFO_Empty_2" }; //.obj and .mtl name should be same as folder name
+        m_meshesUfo = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileNameUfo / (fileNameUfo.string() + ".obj"));
+
+        std::cout << "Ufo Meshes: " << m_meshesUfo.size() << std::endl;
+
+        loadAllTextures(fileNameUfo, m_meshesUfo);
 
         try {
             ShaderBuilder defaultBuilder;
@@ -177,17 +190,27 @@ public:
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
-            const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl").build();
-			ShaderBuilder lightShaderBuilder;
-			lightShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl");
-			lightShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl");
-			m_lightShader = lightShaderBuilder.build();
+            //const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl").build();
+            ShaderBuilder lightShaderBuilder;
+            lightShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl");
+            lightShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl");
+            m_lightShader = lightShaderBuilder.build();
 
-			const Shader skyboxShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl").build();
-			ShaderBuilder skyboxShaderBuilder;
-			skyboxShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
-			skyboxShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
-			m_skyboxShader = skyboxShaderBuilder.build();
+            //const Shader skyboxShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl").build();
+            ShaderBuilder skyboxShaderBuilder;
+            skyboxShaderBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
+            skyboxShaderBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
+            m_skyboxShader = skyboxShaderBuilder.build();
+
+            ShaderBuilder blurBuilder;
+            blurBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/bloom_vert.glsl");
+            blurBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/bloom_frag.glsl");
+            m_bloomShader = blurBuilder.build();
+
+            ShaderBuilder finalBuilder;
+            finalBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/final_vert.glsl");
+            finalBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/final_frag.glsl");
+            m_finalShader = finalBuilder.build();
 
             // Line Shader for Curve
             ShaderBuilder lineBuilder;
@@ -200,9 +223,14 @@ public:
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
             //     VS Code: ctrl + shift + p => CMake: Configure => enter
             // ....
-        } catch (ShaderLoadingException e) {
+        }
+        catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
         }
+
+        //*** for bloom
+        setupBloomFramebuffers(m_window.getWindowSize().x, m_window.getWindowSize().y);
+        setupScreenQuad();
 
         //*** For SHADOWS
         for (size_t i = 0; i < m_lightManager.getLights().size(); ++i) {
@@ -267,7 +295,7 @@ public:
         m_terrain.setRingRadius(m_tileRing);
     }
 
-    void drawMesh(GPUMesh& mesh, const glm::mat4 &mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc, 
+    void drawMesh(GPUMesh& mesh, const glm::mat4& mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc,
         std::vector<glm::vec3> lightPositions, std::vector<glm::vec3> lightColors, std::vector<glm::mat4> lightMVPs) {
         m_defaultShader.bind();
 
@@ -282,7 +310,7 @@ public:
         std::filesystem::path metallicTexPath;
         std::filesystem::path normalTexPath;
         std::filesystem::path kaTexPath;
-		std::filesystem::path emissiveTexPath;
+        std::filesystem::path emissiveTexPath;
 
         if (mesh.hasTextureCoords() && !mesh.m_texturePath.empty() && texturesMap.find(mesh.m_texturePath) != texturesMap.end())
             kdTexPath = mesh.m_texturePath;
@@ -294,51 +322,55 @@ public:
             normalTexPath = mesh.m_normalTexturePath;
         if (mesh.hasKaCoords() && !mesh.m_KaTexturePath.empty() && texturesMap.find(mesh.m_KaTexturePath) != texturesMap.end())
             kaTexPath = mesh.m_KaTexturePath;
-		if (mesh.hasEmissiveCoords() && !mesh.m_emissiveTexturePath.empty() && texturesMap.find(mesh.m_emissiveTexturePath) != texturesMap.end())
-			emissiveTexPath = mesh.m_emissiveTexturePath;
+        if (mesh.hasEmissiveCoords() && !mesh.m_emissiveTexturePath.empty() && texturesMap.find(mesh.m_emissiveTexturePath) != texturesMap.end())
+            emissiveTexPath = mesh.m_emissiveTexturePath;
 
-		glActiveTexture(GL_TEXTURE0);
+        glActiveTexture(GL_TEXTURE0);
         if (!kdTexPath.empty()) { texturesMap.at(kdTexPath).bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE0); glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE); }
 
-		glActiveTexture(GL_TEXTURE1);
+        glActiveTexture(GL_TEXTURE1);
         if (!roughnessTexPath.empty()) { texturesMap.at(roughnessTexPath).bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE1); glUniform1i(m_defaultShader.getUniformLocation("hasRoughnessCoords"), GL_FALSE); }
 
-		glActiveTexture(GL_TEXTURE2);
+        glActiveTexture(GL_TEXTURE2);
         if (!metallicTexPath.empty()) { texturesMap.at(metallicTexPath).bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE2); glUniform1i(m_defaultShader.getUniformLocation("hasMetallicCoords"), GL_FALSE); }
 
-		glActiveTexture(GL_TEXTURE3);
+        glActiveTexture(GL_TEXTURE3);
         if (!normalTexPath.empty()) { texturesMap.at(normalTexPath).bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE3); glUniform1i(m_defaultShader.getUniformLocation("hasNormalCoords"), GL_FALSE); }
 
-		glActiveTexture(GL_TEXTURE4);
+        glActiveTexture(GL_TEXTURE4);
         if (!kaTexPath.empty()) { texturesMap.at(kaTexPath).bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasKaCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE4); glUniform1i(m_defaultShader.getUniformLocation("hasKaCoords"), GL_FALSE); }
 
-		glActiveTexture(GL_TEXTURE5);
+        glActiveTexture(GL_TEXTURE5);
         if (!emissiveTexPath.empty()) { texturesMap.at(emissiveTexPath).bind(GL_TEXTURE5); glUniform1i(m_defaultShader.getUniformLocation("hasEmissiveCoords"), GL_TRUE); }
         else { m_defaultTexture.bind(GL_TEXTURE5); glUniform1i(m_defaultShader.getUniformLocation("hasEmissiveCoords"), GL_FALSE); }
 
-
+        // ** shading
         glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_defaultShader.getUniformLocation("roughnessMap"), 1);
-		glUniform1i(m_defaultShader.getUniformLocation("metallicMap"), 2);
-		glUniform1i(m_defaultShader.getUniformLocation("normalMap"), 3);
-		glUniform1i(m_defaultShader.getUniformLocation("kaMap"), 4);
-		glUniform1i(m_defaultShader.getUniformLocation("emissiveMap"), 5);
+        glUniform1i(m_defaultShader.getUniformLocation("roughnessMap"), 1);
+        glUniform1i(m_defaultShader.getUniformLocation("metallicMap"), 2);
+        glUniform1i(m_defaultShader.getUniformLocation("normalMap"), 3);
+        glUniform1i(m_defaultShader.getUniformLocation("kaMap"), 4);
+        glUniform1i(m_defaultShader.getUniformLocation("emissiveMap"), 5);
         glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
         glUniform1i(m_defaultShader.getUniformLocation("usePBRShading"), m_usePBR);
-		glUniform1i(m_defaultShader.getUniformLocation("useAOTex"), m_useAOTex);
-		glUniform1i(m_defaultShader.getUniformLocation("useEmissive"), m_useEmissive);
+        glUniform1i(m_defaultShader.getUniformLocation("useNormalMapping"), m_useNormalMapping);
+        glUniform1i(m_defaultShader.getUniformLocation("useAOTex"), m_useAOTex);
+        glUniform1i(m_defaultShader.getUniformLocation("useEmissive"), m_useEmissive);
         glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(m_trackball.position()));
 
         // ** environment mapping
         glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTexture);
         glUniform1i(m_defaultShader.getUniformLocation("environmentMap"), 6);
-		glUniform1i(m_defaultShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping);
+        glUniform1i(m_defaultShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping);
+
+        // ** bloom (pass threshold, whether bloom is used is in final shader)
+		glUniform1f(m_defaultShader.getUniformLocation("bloomThreshold"), m_bloomThreshold);
 
         // *** SHADOWS
         glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
@@ -368,9 +400,9 @@ public:
         const std::vector<glm::vec3>& lightPositions,
         const std::vector<glm::vec3>& lightColors,
         float time,
-        std::vector<glm::mat4> &lightMVPs)
+        std::vector<glm::mat4>& lightMVPs)
     {
-        
+
         glm::mat4 bodyTransform = glm::mat4(1.0f);
         float animTime = isWalking ? (time - walkStartTime) : 0.0f;
 
@@ -383,9 +415,9 @@ public:
         const float armY = 0.6023f;
 
         // body
-        drawMesh(m_meshes[0], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[0], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
-        
+
 
         // legs
         glm::mat4 rightLegTransform = glm::mat4(1.0f);
@@ -403,8 +435,8 @@ public:
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -legY, 0.0f));
         }
         
-        drawMesh(m_meshes[3], viewProjMatrix * rightLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[4], viewProjMatrix * leftLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[3], viewProjMatrix * rightLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[4], viewProjMatrix * leftLegTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Foots
         glm::mat4 rightFootTransform = glm::mat4(1.0f);
@@ -422,8 +454,8 @@ public:
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
         }
         
-        drawMesh(m_meshes[1], viewProjMatrix * rightFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[2], viewProjMatrix * leftFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[1], viewProjMatrix * rightFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[2], viewProjMatrix * leftFootTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // arms
         glm::mat4 rightArmTransform = glm::mat4(1.0f);
@@ -440,8 +472,8 @@ public:
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -armY, 0.0f));
         }
         
-        drawMesh(m_meshes[7], viewProjMatrix * rightArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[8], viewProjMatrix * leftArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[7], viewProjMatrix * rightArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[8], viewProjMatrix * leftArmTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Hands
         glm::mat4 rightHandTransform = glm::mat4(1.0f);
@@ -458,11 +490,11 @@ public:
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
         }
         
-        drawMesh(m_meshes[5], viewProjMatrix * rightHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
-        drawMesh(m_meshes[6], viewProjMatrix * leftHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[5], viewProjMatrix * rightHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[6], viewProjMatrix * leftHandTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
 
         // Head
-        drawMesh(m_meshes[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
+        drawMesh(m_meshesCharacter[9], viewProjMatrix * bodyTransform, normalModelMatrixLoc, lightPositions, lightColors, lightMVPs);
     }
 
     glm::vec3 cubicBezier(const glm::vec3& p0, const glm::vec3& p1,
@@ -534,15 +566,15 @@ public:
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
-            else m_useEmissive = false;
+            //else m_useEmissive = false;
             
             ImGui::Separator();
             ImGui::Text("Materials & Shading");
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
-			
-            ImGui::Checkbox("AO Texture", &m_useAOTex);
-			ImGui::Checkbox("Emissive", &m_useEmissive);
+            ImGui::Checkbox("Normal Mapping", &m_useNormalMapping);
+            //ImGui::Checkbox("AO Texture", &m_useAOTex);
+            ImGui::Checkbox("Emissive", &m_useEmissive);
 
             ImGui::Separator();
             ImGui::Text("Environment Mapping");
@@ -612,6 +644,13 @@ public:
                 m_lightManager.getSelectedIndex() = static_cast<size_t>(tempSelectedItem);
             }
 
+            ImGui::Separator();
+            ImGui::Text("Bloom");
+            ImGui::Checkbox("Use Bloom", &m_useBloom);
+            ImGui::SliderFloat("Threshold", &m_bloomThreshold, 0.5f, 2.0f);
+            ImGui::SliderInt("Iterations", &m_bloomIterations, 1, 30);
+            ImGui::SliderFloat("Strength", &m_bloomStrength, 0.5f, 3.0f);
+
             ImGui::End();
 
             // Clear the screen
@@ -621,6 +660,7 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
+            /// use trackball logic to get view and projection matrices based on mouse input
             if (m_moveAlongCurve) {
                 float t = fmod(currentTime * onCurveMoveSpeed, 1.0f);
                 if (m_constSpeedMoveCurve) {
@@ -694,13 +734,12 @@ public:
                 glm::vec3 up = glm::vec3(0, 1, 0);
                 glm::vec3 lightPos = light.position;
                 glm::vec3 target = light.direction;
-				float fov = light.fov;
+                float fov = light.fov;
 
                 glm::mat4 lightView = glm::lookAt(lightPos, target, up);
                 glm::mat4 lightProjection = glm::perspective(fov, 1.0f, 0.1f, 100.0f);
                 glm::mat4 lightMVP = lightProjection * lightView; //* m_modelMatrix
-				lightMVPs.push_back(lightMVP);
-            }
+                lightMVPs.push_back(lightMVP);
 
             // render shadows
             for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
@@ -734,7 +773,15 @@ public:
             // Reset viewport for main rendering
             glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
 
-			// *** end SHADOWS
+            // *** end SHADOWS
+
+            // ** for bloom as well
+            glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
+            glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
+            glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+			// ** end for bloom
 
             // Terrain Gen
             const glm::mat4 viewProj = projectionMatrix * viewMatrix;
@@ -743,9 +790,9 @@ public:
 
             // Draw the terrain early (opaque)
             if (m_drawTerrain) {
-                // We’ll reuse your default shader (it expects many uniforms; set the essentials it needs).
+                // Weï¿½ll reuse your default shader (it expects many uniforms; set the essentials it needs).
                 // Provide cameraPos if your shader expects it (you already set it when drawing meshes).
-                // If your default shader samples PBR textures that aren’t bound for terrain, consider
+                // If your default shader samples PBR textures that arenï¿½t bound for terrain, consider
                 // adding a simple terrain branch or a dedicated terrain shader later.
                 m_defaultShader.bind();
 
@@ -760,7 +807,10 @@ public:
             CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
             // Temporary using character instead of drone
-            CharacterWalkAnimation(mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+			for (size_t i = 0; i < m_meshesUfo.size(); ++i) {
+				drawMesh(m_meshesUfo[i], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
+			}
+            //drawMesh(m_meshesUfo[0], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
 
             
 
@@ -777,10 +827,46 @@ public:
                 glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)m_curvePoints.size());
                 glBindVertexArray(0);
             }
-            
 
-			// Draw skybox last
+            // Draw skybox last
             drawSkybox(projectionMatrix, viewMatrix);
+
+            // ** bloom
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            bool horizontal = true;
+            bool first_iteration = true;
+            if (m_useBloom) {
+                m_bloomShader.bind();
+                for (unsigned int i = 0; i < m_bloomIterations; i++) {
+					// ping-pong framebuffers to blur emissive parts
+                    glBindFramebuffer(GL_FRAMEBUFFER, m_pingpongFBO[horizontal]);
+                    glUniform1i(m_bloomShader.getUniformLocation("horizontal"), horizontal);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, first_iteration ? m_colorBuffers[1] : m_pingpongBuffers[!horizontal]);
+                    glUniform1i(m_bloomShader.getUniformLocation("image"), 0);
+                    renderQuad();
+                    horizontal = !horizontal;
+                    if (first_iteration)
+                        first_iteration = false;
+                }
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            }
+            // combine results
+            glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glDisable(GL_DEPTH_TEST);
+            m_finalShader.bind();
+			// bind the rendered scene to texture 0
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_colorBuffers[0]);
+            glUniform1i(m_finalShader.getUniformLocation("scene"), 0);
+			// bind the blurred brightness texture to texture 1
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, m_pingpongBuffers[!horizontal]); // this has the final blurred image
+            glUniform1i(m_finalShader.getUniformLocation("bloomBlur"), 1);
+            glUniform1i(m_finalShader.getUniformLocation("useBloom"), m_useBloom);
+            glUniform1f(m_finalShader.getUniformLocation("bloomStrength"), m_bloomStrength);
+            renderQuad();
 
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
@@ -824,7 +910,7 @@ public:
             m_camDistance = glm::clamp(m_camDistance, 1.0f, 15.0f);
         }
     }
-        
+
     // If one of the mouse buttons is pressed this function will be called
     // button - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__buttons.html
     // mods - Any modifier buttons pressed
@@ -840,20 +926,29 @@ public:
     {
         //std::cout << "Released mouse button: " << button << std::endl;
     }
+  
+    void onFramebufferSizeChanged(int width, int height) {
+        glDeleteFramebuffers(1, &m_hdrFBO);
+        glDeleteTextures(2, m_colorBuffers);
+        glDeleteRenderbuffers(1, &m_rboDepth);
+        glDeleteFramebuffers(2, m_pingpongFBO);
+        glDeleteTextures(2, m_pingpongBuffers);
+        setupBloomFramebuffers(width, height);
+    }
 
-    void loadAllTextures(const std::filesystem::path& fileName) {
-        for (size_t i = 0; i < m_meshes.size(); ++i) {
-            const GPUMesh& mesh = m_meshes[i];
+    void loadAllTextures(const std::filesystem::path& fileName, const std::vector<GPUMesh>& meshes) {
+        for (size_t i = 0; i < meshes.size(); ++i) {
+            const GPUMesh& mesh = meshes[i];
             std::filesystem::path kdTexPath = mesh.m_texturePath;
             std::filesystem::path roughnessTexPath = mesh.m_roughnessTexturePath;
             std::filesystem::path metallicTexPath = mesh.m_metallicTexturePath;
             std::filesystem::path normalTexPath = mesh.m_normalTexturePath;
             std::filesystem::path kaTexPath = mesh.m_KaTexturePath;
-			std::filesystem::path emissiveTexPath = mesh.m_emissiveTexturePath;
+            std::filesystem::path emissiveTexPath = mesh.m_emissiveTexturePath;
 
-            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
+            //std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
 
-            ////add textures to map, then use those
+            //add textures to map, then use those
             if (!kdTexPath.empty()) {
                 // Check if we've already loaded this texture
                 if (texturesMap.find(kdTexPath.string()) == texturesMap.end()) {
@@ -888,11 +983,11 @@ public:
         std::cout << "Textrue map size: " << texturesMap.size() << std::endl;
     }
 
-	void drawLightsAsSquares(glm::mat4 mvpMatrix) {
-		m_lightShader.bind();
+    void drawLightsAsSquares(glm::mat4 mvpMatrix) {
+        m_lightShader.bind();
         {
             const glm::vec4 screenPos = mvpMatrix * glm::vec4(m_lightManager.getLights()[m_lightManager.getSelectedIndex()].position, 1.0f);
-			const glm::vec3 color = m_lightManager.getLights()[m_lightManager.getSelectedIndex()].color;
+            const glm::vec3 color = m_lightManager.getLights()[m_lightManager.getSelectedIndex()].color;
 
             glPointSize(40.0f);
             glUniform4fv(m_lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
@@ -918,13 +1013,12 @@ public:
     void updateShadowTextures() {
         size_t numLights = m_lightManager.getLights().size();
 
-		//add new textures if lights increased
+        //add new textures if lights increased
         while (m_shadowTextures.size() < numLights) {
             GLuint texShadow;
             glGenTextures(1, &texShadow);
             glBindTexture(GL_TEXTURE_2D, texShadow);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT,
-                0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -985,11 +1079,11 @@ public:
     }
 
     void drawSkybox(const glm::mat4& projectionMatrix, const glm::mat4& viewMatrix) {
-		glDepthFunc(GL_LEQUAL); // sky will be drawn at the farthest depth
+        glDepthFunc(GL_LEQUAL); // sky will be drawn at the farthest depth
 
         m_skyboxShader.bind();
 
-		// no translation for skybox view matrix
+        // no translation for skybox view matrix
         glm::mat4 view = glm::mat4(glm::mat3(viewMatrix));
 
         glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -1006,6 +1100,88 @@ public:
         glDepthFunc(GL_LESS);
     }
 
+    void setupBloomFramebuffers(int width, int height) {
+        glGenFramebuffers(1, &m_hdrFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
+
+        glGenTextures(2, m_colorBuffers);
+        for (unsigned int i = 0; i < 2; i++) {
+            glBindTexture(GL_TEXTURE_2D, m_colorBuffers[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_colorBuffers[0], 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_colorBuffers[1], 0);
+
+        }
+
+        // Create depth renderbuffer
+        glGenRenderbuffers(1, &m_rboDepth);
+        glBindRenderbuffer(GL_RENDERBUFFER, m_rboDepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_rboDepth);
+
+        // Tell OpenGL which color attachments we'll use
+        unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+        glDrawBuffers(2, attachments);
+
+        // Check framebuffer
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR: Color Framebuffer not complete!" << std::endl;
+
+		// blur using ping-pong framebuffers (will be done in the )
+        glGenFramebuffers(2, m_pingpongFBO);
+        glGenTextures(2, m_pingpongBuffers);
+        for (unsigned int i = 0; i < 2; i++) {
+            glBindFramebuffer(GL_FRAMEBUFFER, m_pingpongFBO[i]);
+            glBindTexture(GL_TEXTURE_2D, m_pingpongBuffers[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_pingpongBuffers[i], 0);
+
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                std::cout << "ERROR: Ping-pong Framebuffer not complete!" << std::endl;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void setupScreenQuad() {
+        float quadVertices[] = {
+            // positions   // texCoords
+            -1.0f,  1.0f,  0.0f, 1.0f,
+            -1.0f, -1.0f,  0.0f, 0.0f,
+             1.0f, -1.0f,  1.0f, 0.0f,
+            -1.0f,  1.0f,  0.0f, 1.0f,
+             1.0f, -1.0f,  1.0f, 0.0f,
+             1.0f,  1.0f,  1.0f, 1.0f
+        };
+
+        glGenVertexArrays(1, &m_quadVAO);
+        glGenBuffers(1, &m_quadVBO);
+        glBindVertexArray(m_quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+        glBindVertexArray(0);
+    }
+
+    void renderQuad() {
+        glBindVertexArray(m_quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+    }
+
 
 private:
     Window m_window;
@@ -1013,29 +1189,31 @@ private:
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
-	Shader m_lightShader;
-	Shader m_skyboxShader;
+    Shader m_lightShader;
+    Shader m_skyboxShader;
     GLuint m_skyboxVAO;
     GLuint m_skyboxVBO;
 
     GLuint m_skyboxTexture;
-	bool m_useEnvironmentMapping{ true };
+    bool m_useEnvironmentMapping{ true };
 
     std::vector<GLuint> m_shadowTextures;
     std::vector<GLuint> m_shadowFramebuffers;
     bool m_useShadows{ true };
-	bool m_usePCF{ true };
-	int m_PCFWindowSize{ 5 };
+    bool m_usePCF{ true };
+    int m_PCFWindowSize{ 5 };
 
     LightManager m_lightManager;
 
-    std::vector<GPUMesh> m_meshes;
+    std::vector<GPUMesh> m_meshesCharacter;
+    std::vector<GPUMesh> m_meshesUfo;
     Texture m_defaultTexture;
     std::map<std::filesystem::path, Texture> texturesMap;
-	bool m_useMaterial{ false };
+    bool m_useMaterial{ false };
     bool m_usePBR{ true };
-	bool m_useAOTex{ true };
-	bool m_useEmissive{ false };
+    bool m_useAOTex{ true };
+    bool m_useEmissive{ true };
+    bool m_useNormalMapping{ true };
     int cameraMode = 0;
 
     // Projection and view matrices for you to fill in and use
@@ -1049,6 +1227,24 @@ private:
     bool isWalking = false;
     float walkStartTime = 0.0f;
 
+    // ** Bloom filtering
+    GLuint m_hdrFBO;
+	GLuint m_colorBuffers[2];// 0-> default, 1-> bloom color
+    GLuint m_rboDepth;
+
+    GLuint m_pingpongFBO[2];
+    GLuint m_pingpongBuffers[2];
+
+    Shader m_bloomShader;
+    Shader m_finalShader;
+
+    bool m_useBloom{ true };
+    float m_bloomThreshold{ 1.0f };
+    int m_bloomIterations{ 5 };
+    float m_bloomStrength{ 1.0f };
+
+    GLuint m_quadVAO, m_quadVBO;
+
     // Third-person camera parameters
     float m_camYaw = glm::radians(180.0f);   
     float m_camPitch = glm::radians(10.0f);  
@@ -1061,7 +1257,7 @@ private:
     // Curve instances
     std::vector<glm::vec3> m_curveControlPoints =
     {
-        {0, 0, 0},   // curve 1 p0 
+        {1, 1.8, 1},   // curve 1 p0 
         {1, 0.2, 1},   // curve 1 p1 
         {-1, 0.4, 1},   // curve 1 p2 
         {-1, 0.6, -1},  // curve 1 p3, curve 2 p0 
