@@ -24,6 +24,9 @@ DISABLE_WARNINGS_POP()
 #include <map>
 #include "light.h"
 #include <stb/stb_image.h>
+#include "terrain_manager.h"
+#include "terrain_tile.h"
+#include "terrain_noise.h"
 
 #define SHADOWTEX_WIDTH 1024
 #define SHADOWTEX_HEIGHT 1024
@@ -275,6 +278,21 @@ public:
         // Mesh positions
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // Object that moves along the curve
+
+
+        // Terrain Gen
+        m_terrainParams = TerrainParams{};         // defaults from header
+        m_terrainParams.tileSize = 256.0f;
+        m_terrainParams.vertsPerEdge = 129;
+        m_terrainParams.heightScale = 30.0f;
+        m_terrainParams.baseFrequency = 1.0f / 200.0f;
+        m_terrainParams.octaves = 6;
+        m_terrainParams.lacunarity = 2.0f;
+        m_terrainParams.gain = 0.5f;
+        m_terrainParams.seed = 1337u;             // pick any
+
+        m_terrain.setParams(m_terrainParams);
+        m_terrain.setRingRadius(m_tileRing);
     }
 
     void drawMesh(GPUMesh& mesh, const glm::mat4& mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc,
@@ -591,6 +609,24 @@ public:
                 m_lightManager.reset();
             }
 
+            ImGui::Separator();
+            ImGui::Text("Terrain");
+            ImGui::Checkbox("Draw Terrain", &m_drawTerrain);
+            ImGui::SliderInt("Tile Ring Radius", &m_tileRing, 1, 6);
+            if (m_tileRing != m_terrain.ringRadius())
+                m_terrain.setRingRadius(m_tileRing);
+
+            ImGui::SliderFloat("Height Scale", &m_terrainParams.heightScale, 1.0f, 200.0f, "%.1f");
+            ImGui::SliderFloat("Base Freq (1/m)", &m_terrainParams.baseFrequency, 1.0f / 1000.0f, 1.0f / 10.0f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderInt("Octaves", &m_terrainParams.octaves, 1, 10);
+            ImGui::SliderFloat("Lacunarity", &m_terrainParams.lacunarity, 1.5f, 3.0f);
+            ImGui::SliderFloat("Gain", &m_terrainParams.gain, 0.2f, 0.8f);
+            if (ImGui::Button("Apply Terrain Params")) {
+                m_terrain.destroy();
+                m_terrain.setParams(m_terrainParams);
+            }
+
+
             // Display lights in scene
             std::vector<std::string> itemStrings = {};
             for (size_t i = 0; i < m_lightManager.getLights().size(); i++) {
@@ -682,10 +718,16 @@ public:
             std::vector<glm::vec3> lightPositions;
             std::vector<glm::vec3> lightColors;
 
-            // *** SHADOWS
+            for (const Light& light : m_lightManager.getLights()) {
+                lightPositions.push_back(light.position);
+                lightColors.push_back(light.color);
+            }
+
+			// *** SHADOWS
             updateShadowTextures();
             std::vector<glm::mat4> lightMVPs;
 
+            // build light mvps
             for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 const Light& light = m_lightManager.getLights()[lightIdx];
 
@@ -699,6 +741,8 @@ public:
                 glm::mat4 lightMVP = lightProjection * lightView; //* m_modelMatrix
                 lightMVPs.push_back(lightMVP);
 
+            // render shadows
+            for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 // Bind framebuffer for this light
                 glBindFramebuffer(GL_FRAMEBUFFER, m_shadowFramebuffers[lightIdx]);
                 glViewport(0, 0, 1024, 1024);
@@ -708,10 +752,17 @@ public:
 
                 // Bind shadow shader
                 m_shadowShader.bind();
-                glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
+                //glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
 
                 // Render each mesh
-                for (GPUMesh& mesh : m_meshesCharacter) {
+                CharacterWalkAnimation(lightMVPs[lightIdx], normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+                // this is for STATIC SHADOWS
+                for (size_t meshIdx = 10; meshIdx < m_meshes.size(); ++meshIdx) {
+                    GPUMesh& mesh = m_meshes[meshIdx];
+
+                    glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVPs[lightIdx]));
+
                     mesh.draw(m_shadowShader);
                 }
 
@@ -732,10 +783,25 @@ public:
             glEnable(GL_DEPTH_TEST);
 			// ** end for bloom
 
-            for (const Light& light : m_lightManager.getLights()) {
-                lightPositions.push_back(light.position);
-                lightColors.push_back(light.color);
+            // Terrain Gen
+            const glm::mat4 viewProj = projectionMatrix * viewMatrix;
+
+            // ... your character/lights/shadows as before ...
+
+            // Draw the terrain early (opaque)
+            if (m_drawTerrain) {
+                // We�ll reuse your default shader (it expects many uniforms; set the essentials it needs).
+                // Provide cameraPos if your shader expects it (you already set it when drawing meshes).
+                // If your default shader samples PBR textures that aren�t bound for terrain, consider
+                // adding a simple terrain branch or a dedicated terrain shader later.
+                m_defaultShader.bind();
+
+                // Minimal light uniforms (reusing your existing arrays) are already set before drawMesh,
+                // but if the shader requires them, set/keep them consistent here as well.
+
+                m_terrain.updateAndRender(m_trackball.position(), viewProj, m_defaultShader);
             }
+
 
             if (!isWalking) walkStartTime = currentTime;
             CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
@@ -1212,6 +1278,13 @@ private:
     std::vector<BezierPoint> m_constBezierLookupTable;
     float curveSampleCount = 100.0f;
     float onCurveMoveSpeed = 0.06;
+
+    // Terraing gen
+    TerrainManager m_terrain;
+    TerrainParams  m_terrainParams;
+    bool m_drawTerrain = true;
+    int  m_tileRing = 2; // 2 -> 25 tiles
+
 };
 
 int main()
