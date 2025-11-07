@@ -1306,7 +1306,7 @@ private:
     bool m_usePBR{ true };
     bool m_useAOTex{ true };
     bool m_useEmissive{ true };
-    bool m_useNormalMapping{ true };
+    bool m_useNormalMapping{ false };
     int cameraMode = 0;
 
     // Projection and view matrices for you to fill in and use
