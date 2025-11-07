@@ -678,10 +678,16 @@ public:
             std::vector<glm::vec3> lightPositions;
             std::vector<glm::vec3> lightColors;
 
+            for (const Light& light : m_lightManager.getLights()) {
+                lightPositions.push_back(light.position);
+                lightColors.push_back(light.color);
+            }
+
 			// *** SHADOWS
             updateShadowTextures();
             std::vector<glm::mat4> lightMVPs;
 
+            // build light mvps
             for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 const Light& light = m_lightManager.getLights()[lightIdx];
 
@@ -694,7 +700,10 @@ public:
                 glm::mat4 lightProjection = glm::perspective(fov, 1.0f, 0.1f, 100.0f);
                 glm::mat4 lightMVP = lightProjection * lightView; //* m_modelMatrix
 				lightMVPs.push_back(lightMVP);
+            }
 
+            // render shadows
+            for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 // Bind framebuffer for this light
                 glBindFramebuffer(GL_FRAMEBUFFER, m_shadowFramebuffers[lightIdx]);
                 glViewport(0, 0, 1024, 1024);
@@ -704,10 +713,17 @@ public:
 
                 // Bind shadow shader
                 m_shadowShader.bind();
-                glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
+                //glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
 
                 // Render each mesh
-                for (GPUMesh& mesh : m_meshes) {
+                CharacterWalkAnimation(lightMVPs[lightIdx], normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+                // this is for STATIC SHADOWS
+                for (size_t meshIdx = 10; meshIdx < m_meshes.size(); ++meshIdx) {
+                    GPUMesh& mesh = m_meshes[meshIdx];
+
+                    glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVPs[lightIdx]));
+
                     mesh.draw(m_shadowShader);
                 }
 
@@ -719,12 +735,6 @@ public:
             glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
 
 			// *** end SHADOWS
-
-            for (const Light& light : m_lightManager.getLights()) {
-                lightPositions.push_back(light.position);
-                lightColors.push_back(light.color);
-            }
-
 
             // Terrain Gen
             const glm::mat4 viewProj = projectionMatrix * viewMatrix;
