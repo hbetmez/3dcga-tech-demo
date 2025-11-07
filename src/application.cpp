@@ -408,6 +408,8 @@ public:
 
         float legSwingParam = glm::radians(30.0f) * sin(animTime * 4.0f);
         float armSwingParam = glm::radians(30.0f) * sin(animTime * 4.0f + glm::pi<float>());
+        float footSwing = glm::radians(20.0f) * sin(animTime * 4.0f + glm::pi<float>() * 0.5f);
+        float handSwing = glm::radians(20.0f) * sin(animTime * 4.0f + glm::pi<float>() * 0.5f);
         // Offsets from origin to joints
         const float footY = 0.2185f;
         const float legY = 0.3804f;
@@ -442,15 +444,18 @@ public:
         glm::mat4 rightFootTransform = glm::mat4(1.0f);
         glm::mat4 leftFootTransform = glm::mat4(1.0f);
 
-        if (isWalking) {
+        if (isWalking)
+        {
             rightFootTransform = rightLegTransform
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, footY, 0.0f))
                 * glm::rotate(glm::mat4(1.0f), -0.5f * legSwingParam, glm::vec3(1, 0, 0))
+                * glm::rotate(glm::mat4(1.0f), footSwing, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
 
             leftFootTransform = leftLegTransform
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, footY, 0.0f))
                 * glm::rotate(glm::mat4(1.0f), 0.5f * legSwingParam, glm::vec3(1, 0, 0))
+                * glm::rotate(glm::mat4(1.0f), -footSwing, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -footY, 0.0f));
         }
         
@@ -478,15 +483,18 @@ public:
         // Hands
         glm::mat4 rightHandTransform = glm::mat4(1.0f);
         glm::mat4 leftHandTransform = glm::mat4(1.0f);
-        if (isWalking) {
+        if (isWalking)
+        {
             rightHandTransform = rightArmTransform
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, handY, 0.0f))
                 * glm::rotate(glm::mat4(1.0f), 0.5f * armSwingParam, glm::vec3(1, 0, 0))
+                * glm::rotate(glm::mat4(1.0f), handSwing, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
 
             leftHandTransform = leftArmTransform
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, handY, 0.0f))
                 * glm::rotate(glm::mat4(1.0f), -0.5f * armSwingParam, glm::vec3(1, 0, 0))
+                * glm::rotate(glm::mat4(1.0f), -handSwing, glm::vec3(1, 0, 0))
                 * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -handY, 0.0f));
         }
         
