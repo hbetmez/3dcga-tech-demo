@@ -641,11 +641,17 @@ public:
             glm::vec3 characterPosition = !m_meshesPositions.empty() ? m_meshesPositions[0] : glm::vec3(0.0f);
             glm::vec3 objectOnCurvePos = m_meshesPositions.size() >= 2 ? m_meshesPositions[1] : glm::vec3(0.0f);
 
+			// window size for resizing
+			glm::ivec2 windowSize = m_window.getWindowSize();
+			float aspectRatio = static_cast<float>(windowSize.x) / static_cast<float>(windowSize.y);
+
             if (cameraMode == 1) {
                 projectionMatrix = m_trackball.projectionMatrix();
                 viewMatrix = m_trackball.viewMatrix();
             } else if (cameraMode == 2) {
                 // third person
+				projectionMatrix = glm::perspective(glm::radians(80.0f), aspectRatio, 0.1f, 100.0f);
+
                 glm::vec3 offset;
                 offset.x = m_camDistance * cos(m_camPitch) * sin(m_camYaw);
                 offset.y = m_camDistance * sin(m_camPitch);
@@ -657,6 +663,8 @@ public:
                 viewMatrix = glm::lookAt(cameraPos, targetPos, glm::vec3(0, 1, 0));
             } else if (cameraMode == 3) {
                 // top down static cam
+				projectionMatrix = glm::perspective(glm::radians(80.0f), aspectRatio, 0.1f, 100.0f);
+
                 glm::vec3 cameraPos = characterPosition + glm::vec3(0.0f, m_camDistance, 0.0f);
                 glm::vec3 targetPos = characterPosition;
 
