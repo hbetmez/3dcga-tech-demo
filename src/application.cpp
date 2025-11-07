@@ -423,7 +423,7 @@ public:
             ImGui::Checkbox("Material", &m_useMaterial);
             ImGui::Checkbox("PBR Shading", &m_usePBR);
             ImGui::Checkbox("Normal Mapping", &m_useNormalMapping);
-            ImGui::Checkbox("AO Texture", &m_useAOTex);
+            //ImGui::Checkbox("AO Texture", &m_useAOTex);
             ImGui::Checkbox("Emissive", &m_useEmissive);
 
             ImGui::Separator();
@@ -475,6 +475,13 @@ public:
             if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int)itemCStrings.size(), 4)) {
                 m_lightManager.getSelectedIndex() = static_cast<size_t>(tempSelectedItem);
             }
+
+            ImGui::Separator();
+            ImGui::Text("Bloom");
+            ImGui::Checkbox("Use Bloom", &m_useBloom);
+            ImGui::SliderFloat("Threshold", &m_bloomThreshold, 0.5f, 2.0f);
+            ImGui::SliderInt("Iterations", &m_bloomIterations, 1, 30);
+            ImGui::SliderFloat("Exposure", &m_bloomExposure, 0.5f, 3.0f);
 
             ImGui::End();
 
@@ -542,14 +549,13 @@ public:
 
             // *** end SHADOWS
 
+            // ** for bloom as well
             glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
             glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
-
-
-            // ** Bloom (blurring bright areas)
+			// ** end for bloom
 
             for (const Light& light : m_lightManager.getLights()) {
                 lightPositions.push_back(light.position);
@@ -566,7 +572,6 @@ public:
             drawSkybox(projectionMatrix, viewMatrix);
 
             // ** bloom
-
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             bool horizontal = true;
             bool first_iteration = true;
@@ -597,7 +602,7 @@ public:
             glUniform1i(m_finalShader.getUniformLocation("scene"), 0);
 			// bind the blurred brightness texture to texture 1
             glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, m_pingpongBuffers[!horizontal]); // Blurred brightness
+            glBindTexture(GL_TEXTURE_2D, m_pingpongBuffers[!horizontal]); // this has the final blurred image
             glUniform1i(m_finalShader.getUniformLocation("bloomBlur"), 1);
             glUniform1i(m_finalShader.getUniformLocation("useBloom"), m_useBloom);
             glUniform1f(m_finalShader.getUniformLocation("exposure"), m_bloomExposure);
@@ -667,7 +672,7 @@ public:
 
             std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
 
-            ////add textures to map, then use those
+            //add textures to map, then use those
             if (!kdTexPath.empty()) {
                 // Check if we've already loaded this texture
                 if (texturesMap.find(kdTexPath.string()) == texturesMap.end()) {
@@ -737,8 +742,7 @@ public:
             GLuint texShadow;
             glGenTextures(1, &texShadow);
             glBindTexture(GL_TEXTURE_2D, texShadow);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT,
-                0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOWTEX_WIDTH, SHADOWTEX_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -833,16 +837,16 @@ public:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i,
-                GL_TEXTURE_2D, m_colorBuffers[i], 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_colorBuffers[0], 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_colorBuffers[1], 0);
+
         }
 
         // Create depth renderbuffer
         glGenRenderbuffers(1, &m_rboDepth);
         glBindRenderbuffer(GL_RENDERBUFFER, m_rboDepth);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-            GL_RENDERBUFFER, m_rboDepth);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_rboDepth);
 
         // Tell OpenGL which color attachments we'll use
         unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
@@ -850,9 +854,9 @@ public:
 
         // Check framebuffer
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "HDR Framebuffer not complete!" << std::endl;
+            std::cout << "ERROR: Color Framebuffer not complete!" << std::endl;
 
-        // Ping-pong framebuffers for blurring
+		// blur using ping-pong framebuffers (will be done in the )
         glGenFramebuffers(2, m_pingpongFBO);
         glGenTextures(2, m_pingpongBuffers);
         for (unsigned int i = 0; i < 2; i++) {
@@ -864,11 +868,10 @@ public:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                GL_TEXTURE_2D, m_pingpongBuffers[i], 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_pingpongBuffers[i], 0);
 
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-                std::cout << "Ping-pong Framebuffer not complete!" << std::endl;
+                std::cout << "ERROR: Ping-pong Framebuffer not complete!" << std::endl;
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -932,9 +935,9 @@ private:
     bool m_useMaterial{ false };
     bool m_usePBR{ true };
     bool m_useAOTex{ true };
-    bool m_useEmissive{ false };
+    bool m_useEmissive{ true };
     bool m_useMouseControls{ true };
-    bool m_useNormalMapping{ false };
+    bool m_useNormalMapping{ true };
 
     // Projection and view matrices for you to fill in and use
     //glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
@@ -958,7 +961,7 @@ private:
     Shader m_bloomShader;
     Shader m_finalShader;
 
-    bool m_useBloom{ false };
+    bool m_useBloom{ true };
     float m_bloomThreshold{ 1.0f };
     int m_bloomIterations{ 5 };
     float m_bloomExposure{ 1.0f };
