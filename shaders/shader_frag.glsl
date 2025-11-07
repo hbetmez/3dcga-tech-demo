@@ -309,8 +309,10 @@ void main()
     }
 
     // ** environment mapping
-    if (useEnvironmentMapping) finalColor = mix(finalColor, reflection, metal); // add some environment reflection
-
+    if (useEnvironmentMapping) {
+        float reflectionStrength = metal * (1.0 - rough) * 0.5; 
+        finalColor = mix(finalColor, reflection, reflectionStrength);
+    }
     vec3 ambient = vec3(0.01) * baseColor;
     if (useAOTex) ambient *= ka;
     vec3 color = finalColor + ambient;
