@@ -1,19 +1,25 @@
 #include "terrain_tile.h"
 #include <glm/gtc/type_ptr.hpp>
 
+// Computing normals of the surface (This code inspired from existing implementations), 
+// we are not that familiar about implementation but we know what exactly it do
 static void computeNormals(const std::vector<glm::vec3>& pos, int N, float dx, float dz,
     std::vector<glm::vec3>& outN)
 {
     outN.resize(pos.size());
-    auto idx = [N](int r, int c) { return r * N + c; };
+    auto idx = [N](int r, int c) { 
+        return r * N + c; 
+    }; // lambda expression for 2D index to 1D
 
     for (int r = 0; r < N; ++r) {
         for (int c = 0; c < N; ++c) {
+
             int r0 = std::max(r - 1, 0), r1 = std::min(r + 1, N - 1);
             int c0 = std::max(c - 1, 0), c1 = std::min(c + 1, N - 1);
 
             const glm::vec3& L = pos[idx(r, c0)];
             const glm::vec3& R = pos[idx(r, c1)];
+
             const glm::vec3& D = pos[idx(r0, c)];
             const glm::vec3& U = pos[idx(r1, c)];
 
@@ -26,6 +32,7 @@ static void computeNormals(const std::vector<glm::vec3>& pos, int N, float dx, f
     }
 }
 
+// Inspired by existing implementation but implemented by ourself
 void buildTerrainTile(TerrainTile& tile, const TerrainParams& P)
 {
     const int N = P.vertsPerEdge;
@@ -34,30 +41,32 @@ void buildTerrainTile(TerrainTile& tile, const TerrainParams& P)
     const float x0 = tile.id.tx * S;
     const float z0 = tile.id.tz * S;
 
-    // ***** UPDATED VERTEX STRUCT: add UV *****
     struct V {
-        glm::vec3 p;
-        glm::vec3 n;
-        glm::vec2 uv;  // <--- ADDED
+        glm::vec3 p; //point
+        glm::vec3 n; // normal
+        glm::vec2 uv; // added for uv texture mapping in application.cpp
     };
 
-    std::vector<glm::vec3> positions(N * N);
-    auto idx = [N](int r, int c) { return r * N + c; };
+    std::vector<glm::vec3> positions(N * N); // position space (NXN grid)
 
-    glm::vec3 aabbMin(1e9f), aabbMax(-1e9f);
+    auto idx = [N](int r, int c) { 
+        return r * N + c; 
+    }; // lambda expression for 2D index to 1D
+
+    glm::vec3 min(1e9f), max(-1e9f);
 
     // positions
-    for (int r = 0; r < N; ++r) {
-        for (int c = 0; c < N; ++c) {
-            float x = x0 + c * step;
-            float z = z0 + r * step;
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            float x = x0 + j * step;
+            float z = z0 + i * step;
             float y = terrainHeight(x, z, P);
 
             glm::vec3 p(x, y, z);
-            positions[idx(r, c)] = p;
+            positions[ idx(i, j)] = p;
 
-            aabbMin = glm::min(aabbMin, p);
-            aabbMax = glm::max(aabbMax, p);
+            min = glm::min(min, p);
+            max = glm::max(max, p);
         }
     }
 
@@ -67,19 +76,19 @@ void buildTerrainTile(TerrainTile& tile, const TerrainParams& P)
 
     // pack vertices
     std::vector<V> verts(N * N);
-    for (int r = 0; r < N; ++r) {
-        for (int c = 0; c < N; ++c) {
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
             V v;
-            v.p = positions[idx(r, c)];
-            v.n = normals[idx(r, c)];
+            v.p = positions[idx(i,j)];
+            v.n = normals[idx(i,j)];
 
-            // ***** ADD UV: simple normalized tile UV *****
+            // UV calc
             v.uv = glm::vec2(
-                float(c) / float(N - 1),
-                float(r) / float(N - 1)
+                float(j) / float(N - 1),
+                float(i) / float(N - 1)
             );
 
-            verts[idx(r, c)] = v;
+            verts[idx(i,j)] = v;
         }
     }
 
@@ -94,8 +103,8 @@ void buildTerrainTile(TerrainTile& tile, const TerrainParams& P)
             uint32_t i2 = idx(r + 1, c);
             uint32_t i3 = idx(r + 1, c + 1);
 
-            indices.push_back(i0); indices.push_back(i2); indices.push_back(i1);
-            indices.push_back(i1); indices.push_back(i2); indices.push_back(i3);
+            indices.push_back(i0); indices.push_back(i2); indices.push_back(i1); // triangle 1 (same dir)
+            indices.push_back(i1); indices.push_back(i2); indices.push_back(i3); // triangle 2 (same dir)
         }
     }
 
@@ -112,22 +121,22 @@ void buildTerrainTile(TerrainTile& tile, const TerrainParams& P)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tile.ibo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), GL_STATIC_DRAW);
 
-    // position -> location 0
+    // position =>> location 0
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(V), (void*)offsetof(V, p));
 
-    // normal -> location 1
+    // normal =>> location 1
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(V), (void*)offsetof(V, n));
 
-    // ***** UV -> location 2 *****
+    // uv =>> location 2
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(V), (void*)offsetof(V, uv));
 
     glBindVertexArray(0);
 
     tile.indexCount = (GLsizei)indices.size();
-    tile.aabbMin = aabbMin;
-    tile.aabbMax = aabbMax;
+    tile.aabbMin = min;
+    tile.aabbMax = max;
     tile.ready = true;
 }

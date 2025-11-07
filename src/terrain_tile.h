@@ -12,7 +12,8 @@ struct TileIDHasher {
     size_t operator()(const TileID& k) const {
         uint64_t x = (uint64_t)(uint32_t)k.tx;
         uint64_t z = (uint64_t)(uint32_t)k.tz;
-        uint64_t h = (x << 32) ^ (z * 0x9E3779B185EBCA87ull);
+        uint64_t h =  (x << 32) ^ (z * 0x9E3779B185EBCA87ull);
+
         h ^= (h >> 33); h *= 0xff51afd7ed558ccdULL;
         h ^= (h >> 33); h *= 0xc4ceb9fe1a85ec53ULL;
         h ^= (h >> 33);
@@ -37,5 +38,4 @@ struct TerrainTile {
     }
 };
 
-// Build (or rebuild) the GL buffers for this tile
 void buildTerrainTile(TerrainTile& tile, const TerrainParams& params);
