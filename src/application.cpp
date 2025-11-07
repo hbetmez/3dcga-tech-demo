@@ -166,7 +166,7 @@ public:
 
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
         //std::cout << "Loaded cpu meshes" << std::endl;
-        std::filesystem::path fileNameUfo{ "UFO_Empty" }; //.obj and .mtl name should be same as folder name
+        std::filesystem::path fileNameUfo{ "UFO_Empty_2" }; //.obj and .mtl name should be same as folder name
         m_meshesUfo = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources" / fileNameUfo / (fileNameUfo.string() + ".obj"));
 
         std::cout << "Ufo Meshes: " << m_meshesUfo.size() << std::endl;
@@ -526,7 +526,7 @@ public:
             
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
-            else m_useEmissive = false;
+            //else m_useEmissive = false;
             
             ImGui::Separator();
             ImGui::Text("Materials & Shading");
@@ -703,7 +703,10 @@ public:
             CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
             // Temporary using character instead of drone
-            drawMesh(m_meshesUfo[0], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
+			for (size_t i = 0; i < m_meshesUfo.size(); ++i) {
+				drawMesh(m_meshesUfo[i], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
+			}
+            //drawMesh(m_meshesUfo[0], mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, lightMVPs);
 
             
 
@@ -794,7 +797,7 @@ public:
             std::filesystem::path kaTexPath = mesh.m_KaTexturePath;
 			std::filesystem::path emissiveTexPath = mesh.m_emissiveTexturePath;
 
-            std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
+            //std::cout << "Texture names: " << kdTexPath << roughnessTexPath << metallicTexPath << normalTexPath << kaTexPath << emissiveTexPath << std::endl;
 
             ////add textures to map, then use those
             if (!kdTexPath.empty()) {
