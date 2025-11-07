@@ -565,7 +565,7 @@ public:
             if (!isWalking) walkStartTime = currentTime;
             CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
-            // Draw lights as squares
+            // Draw lights as squares 
             drawLightsAsSquares(mvpMatrix);
 
             // Draw skybox last
