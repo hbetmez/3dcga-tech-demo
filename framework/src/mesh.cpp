@@ -19,7 +19,6 @@ DISABLE_WARNINGS_POP()
 #include <map>
 
 static void centerAndScaleToUnitMesh(std::span<Mesh> meshes);
-static void tangentsAndBitangents(Mesh& mesh);
 
 static glm::vec3 construct_vec3(const float* pFloats)
 {
@@ -101,9 +100,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                     Vertex vertex {
                         .position = construct_vec3(&inAttrib.vertices[3 * tinyObjIndex.vertex_index]),
                         .normal = glm::vec3(0),
-                        .texCoord = glm::vec2(0),
-                        .tangent = glm::vec3(0),
-                        .bitangent = glm::vec3(0)
+                        .texCoord = glm::vec2(0)
                     };
                     if (tinyObjIndex.normal_index != -1 && !inAttrib.normals.empty())
                         vertex.normal = glm::vec3(inAttrib.normals[3 * tinyObjIndex.normal_index + 0], inAttrib.normals[3 * tinyObjIndex.normal_index + 1], inAttrib.normals[3 * tinyObjIndex.normal_index + 2]);
@@ -173,9 +170,6 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 }
             }
 
-            // this will calculate tangent and bitangent for each triangle (for normal mapping)
-            tangentsAndBitangents(mesh);
-
             out.push_back(std::move(mesh));
 
             startTriangle = endTriangle;
@@ -186,61 +180,6 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
         centerAndScaleToUnitMesh(out);
 
     return out;
-}
-
-static void tangentsAndBitangents(Mesh& mesh)
-{
-    std::vector<glm::vec3> tangents(mesh.vertices.size(), glm::vec3(0.0f));
-    std::vector<glm::vec3> bitangents(mesh.vertices.size(), glm::vec3(0.0f));
-
-    // for each traingle in mesh we calculate the tangent and bitangent
-    for (const auto& triangle : mesh.triangles) {
-        Vertex& v0 = mesh.vertices[triangle.x];
-        Vertex& v1 = mesh.vertices[triangle.y];
-        Vertex& v2 = mesh.vertices[triangle.z];
-
-        glm::vec3 edge1 = v1.position - v0.position;
-        glm::vec3 edge2 = v2.position - v0.position;
-        glm::vec2 deltaUV1 = v1.texCoord - v0.texCoord;
-        glm::vec2 deltaUV2 = v2.texCoord - v0.texCoord;
-
-        float denominator = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-        float f = (denominator != 0.0f) ? (1.0f / denominator) : 0.0f;
-
-        glm::vec3 tangent;
-        tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-        tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-        tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-
-        glm::vec3 bitangent;
-        bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-        bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-        bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-
-        // done, store them
-        tangents[triangle.x] += tangent;
-        tangents[triangle.y] += tangent;
-        tangents[triangle.z] += tangent;
-
-        bitangents[triangle.x] += bitangent;
-        bitangents[triangle.y] += bitangent;
-        bitangents[triangle.z] += bitangent;
-    }
-
-    // normalise one by one and store in vertex
-    for (size_t i = 0; i < mesh.vertices.size(); i++) {
-        if (glm::length(tangents[i]) > 0.0f) {
-            mesh.vertices[i].tangent = glm::normalize(tangents[i]);
-        } else {
-            mesh.vertices[i].tangent = glm::vec3(1.0f, 0.0f, 0.0f); // default tangent
-        }
-
-        if (glm::length(bitangents[i]) > 0.0f) {
-            mesh.vertices[i].bitangent = glm::normalize(bitangents[i]);
-        } else {
-            mesh.vertices[i].bitangent = glm::vec3(0.0f, 1.0f, 0.0f); // default bitangent
-        }
-    }
 }
 
 static void centerAndScaleToUnitMesh(std::span<Mesh> meshes)

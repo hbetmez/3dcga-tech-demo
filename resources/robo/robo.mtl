@@ -18,4 +18,6 @@ newmtl robo
 	map_Ke robo_emissive.tga
 	map_Pm robo_metalness.tga
 	map_Pr robo_roughness.tga
-	norm robo_normal2.png
+	map_bump robo_normal.tga
+	norm robo_normal.tga
+	bump robo_normal.tga
