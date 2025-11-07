@@ -54,6 +54,9 @@ uniform mat4 lightMVPs[MAX_LIGHTS];
 uniform samplerCube environmentMap;
 uniform bool useEnvironmentMapping;
 
+// ** for bloom
+uniform float bloomThreshold;
+
 in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
@@ -314,15 +317,16 @@ void main()
 
     if (useEmissive && hasEmissiveCoords) color += ke;
 
+    // these are now done in the final shader
     //color = color / (color + vec3(1.0)); // tone mapping
     //color = pow(color, vec3(1.0/2.2)); // gamma correction
 
     //fragColor = vec4(N, 1.0);
     fragColor = vec4(color, 1.0);
 
-    if (useEmissive && hasEmissiveCoords) {
-        bloomColor = vec4(ke, 1.0);
-    } else {
-        bloomColor = vec4(0.0, 0.0, 0.0, 1.0);
-    }
+    float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722)); // relativ luminance
+    vec3 bloomContribution = vec3(0.0);
+    if (useEmissive && hasEmissiveCoords) bloomContribution += ke;
+    if (brightness > bloomThreshold) bloomContribution += color;
+    bloomColor = vec4(bloomContribution, 1.0);
 }

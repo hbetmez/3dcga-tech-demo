@@ -6,7 +6,7 @@ in vec2 texCoords;
 uniform sampler2D scene;
 uniform sampler2D bloomBlur;
 uniform bool useBloom;
-uniform float exposure;
+uniform float bloomStrength;
 
 void main()
 {             
@@ -14,10 +14,10 @@ void main()
     vec3 bloomColor = texture(bloomBlur, texCoords).rgb;
     
     if(useBloom)
-        originalColor += bloomColor;
+        originalColor += (bloomColor * bloomStrength);
     
     // tone mapping
-    vec3 result = vec3(1.0) - exp(-originalColor * exposure);
+    vec3 result = vec3(1.0) - exp(-originalColor);
     
     // gamma correction
     const float gamma = 2.2;

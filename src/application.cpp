@@ -276,6 +276,9 @@ public:
         glUniform1i(m_defaultShader.getUniformLocation("environmentMap"), 6);
         glUniform1i(m_defaultShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping);
 
+        // ** bloom (pass threshold, whether bloom is used is in final shader)
+		glUniform1f(m_defaultShader.getUniformLocation("bloomThreshold"), m_bloomThreshold);
+
         // *** SHADOWS
         glUniform1i(m_defaultShader.getUniformLocation("useShadows"), m_useShadows);
         glUniform1i(m_defaultShader.getUniformLocation("usePCF"), m_usePCF);
@@ -481,7 +484,7 @@ public:
             ImGui::Checkbox("Use Bloom", &m_useBloom);
             ImGui::SliderFloat("Threshold", &m_bloomThreshold, 0.5f, 2.0f);
             ImGui::SliderInt("Iterations", &m_bloomIterations, 1, 30);
-            ImGui::SliderFloat("Exposure", &m_bloomExposure, 0.5f, 3.0f);
+            ImGui::SliderFloat("Strength", &m_bloomStrength, 0.5f, 3.0f);
 
             ImGui::End();
 
@@ -565,7 +568,7 @@ public:
             if (!isWalking) walkStartTime = currentTime;
             CharacterWalkAnimation(mvpMatrix, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
-            // Draw lights as squares 
+            // Draw lights as squares
             drawLightsAsSquares(mvpMatrix);
 
             // Draw skybox last
@@ -605,7 +608,7 @@ public:
             glBindTexture(GL_TEXTURE_2D, m_pingpongBuffers[!horizontal]); // this has the final blurred image
             glUniform1i(m_finalShader.getUniformLocation("bloomBlur"), 1);
             glUniform1i(m_finalShader.getUniformLocation("useBloom"), m_useBloom);
-            glUniform1f(m_finalShader.getUniformLocation("exposure"), m_bloomExposure);
+            glUniform1f(m_finalShader.getUniformLocation("bloomStrength"), m_bloomStrength);
             renderQuad();
 
             // Processes input and swaps the window buffer
@@ -964,7 +967,7 @@ private:
     bool m_useBloom{ true };
     float m_bloomThreshold{ 1.0f };
     int m_bloomIterations{ 5 };
-    float m_bloomExposure{ 1.0f };
+    float m_bloomStrength{ 1.0f };
 
     GLuint m_quadVAO, m_quadVBO;
 };
