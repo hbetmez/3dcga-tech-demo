@@ -281,7 +281,7 @@ public:
 
 
         // Terrain Gen
-        m_terrainParams = TerrainParams{};         // defaults from header
+        m_terrainParams = TerrainParams{};
         m_terrainParams.tileSize = 256.0f;
         m_terrainParams.vertsPerEdge = 129;
         m_terrainParams.heightScale = 30.0f;
@@ -289,7 +289,7 @@ public:
         m_terrainParams.octaves = 6;
         m_terrainParams.lacunarity = 2.0f;
         m_terrainParams.gain = 0.5f;
-        m_terrainParams.seed = 1337u;             // pick any
+        m_terrainParams.seed = 1337u;
 
         m_terrain.setParams(m_terrainParams);
         m_terrain.setRingRadius(m_tileRing);
@@ -726,10 +726,16 @@ public:
             std::vector<glm::vec3> lightPositions;
             std::vector<glm::vec3> lightColors;
 
+            for (const Light& light : m_lightManager.getLights()) {
+                lightPositions.push_back(light.position);
+                lightColors.push_back(light.color);
+            }
+
             // *** SHADOWS
             updateShadowTextures();
             std::vector<glm::mat4> lightMVPs;
 
+            // build light mvps
             for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 const Light& light = m_lightManager.getLights()[lightIdx];
 
@@ -742,7 +748,10 @@ public:
                 glm::mat4 lightProjection = glm::perspective(fov, 1.0f, 0.1f, 100.0f);
                 glm::mat4 lightMVP = lightProjection * lightView; //* m_modelMatrix
                 lightMVPs.push_back(lightMVP);
+            }
 
+            // render shadows
+            for (size_t lightIdx = 0; lightIdx < m_lightManager.getLights().size(); ++lightIdx) {
                 // Bind framebuffer for this light
                 glBindFramebuffer(GL_FRAMEBUFFER, m_shadowFramebuffers[lightIdx]);
                 glViewport(0, 0, 1024, 1024);
@@ -752,10 +761,17 @@ public:
 
                 // Bind shadow shader
                 m_shadowShader.bind();
-                glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
+                //glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVP));
 
                 // Render each mesh
-                for (GPUMesh& mesh : m_meshesCharacter) {
+                CharacterWalkAnimation(lightMVPs[lightIdx], normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+
+                // this is for STATIC SHADOWS
+                for (size_t meshIdx = 10; meshIdx < m_meshesCharacter.size(); ++meshIdx) {
+                    GPUMesh& mesh = m_meshesCharacter[meshIdx];
+
+                    glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(lightMVPs[lightIdx]));
+
                     mesh.draw(m_shadowShader);
                 }
 
@@ -786,11 +802,6 @@ public:
                 m_defaultShader.bind();
 
                 m_terrain.updateAndRender(m_trackball.position(), viewProj, m_defaultShader);
-            }
-
-            for (const Light& light : m_lightManager.getLights()) {
-                lightPositions.push_back(light.position);
-                lightColors.push_back(light.color);
             }
 
             if (!isWalking) walkStartTime = currentTime;
@@ -1114,7 +1125,7 @@ public:
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_rboDepth);
 
-        // Tell OpenGL which color attachments we'll use
+        // we need two color attachments for the two renders
         unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
         glDrawBuffers(2, attachments);
 
@@ -1122,7 +1133,7 @@ public:
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "ERROR: Color Framebuffer not complete!" << std::endl;
 
-		// blur using ping-pong framebuffers (will be done in the )
+		// blur using ping-pong framebuffers (will be done in the bloom shader)
         glGenFramebuffers(2, m_pingpongFBO);
         glGenTextures(2, m_pingpongBuffers);
         for (unsigned int i = 0; i < 2; i++) {
