@@ -252,8 +252,8 @@ public:
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // Object that moves along the curve
 
 
-        // Terrain Gen
-        m_terrainParams = TerrainParams{};         // defaults from header
+        // ** terrain generation
+        m_terrainParams = TerrainParams{};
         m_terrainParams.tileSize = 256.0f;
         m_terrainParams.vertsPerEdge = 129;
         m_terrainParams.heightScale = 30.0f;
@@ -261,7 +261,7 @@ public:
         m_terrainParams.octaves = 6;
         m_terrainParams.lacunarity = 2.0f;
         m_terrainParams.gain = 0.5f;
-        m_terrainParams.seed = 1337u;             // pick any
+        m_terrainParams.seed = 1337u;
 
         m_terrain.setParams(m_terrainParams);
         m_terrain.setRingRadius(m_tileRing);
@@ -736,22 +736,12 @@ public:
 
 			// *** end SHADOWS
 
-            // Terrain Gen
+            // *** terrain generation
             const glm::mat4 viewProj = projectionMatrix * viewMatrix;
 
-            // ... your character/lights/shadows as before ...
-
-            // Draw the terrain early (opaque)
+            // render terrain 
             if (m_drawTerrain) {
-                // We’ll reuse your default shader (it expects many uniforms; set the essentials it needs).
-                // Provide cameraPos if your shader expects it (you already set it when drawing meshes).
-                // If your default shader samples PBR textures that aren’t bound for terrain, consider
-                // adding a simple terrain branch or a dedicated terrain shader later.
                 m_defaultShader.bind();
-
-                // Minimal light uniforms (reusing your existing arrays) are already set before drawMesh,
-                // but if the shader requires them, set/keep them consistent here as well.
-
                 m_terrain.updateAndRender(m_trackball.position(), viewProj, m_defaultShader);
             }
 
@@ -762,7 +752,7 @@ public:
             // Temporary using character instead of drone
             CharacterWalkAnimation(mvpMatrixCurveObj, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
 
-            
+
 
 			// Draw lights as squares
 			drawLightsAsSquares(mvpMatrixStatic);
@@ -1083,7 +1073,7 @@ private:
     float curveSampleCount = 100.0f;
     float onCurveMoveSpeed = 0.06;
 
-    // Terraing gen
+    // ** terrain generation
     TerrainManager m_terrain;
     TerrainParams  m_terrainParams;
     bool m_drawTerrain = true;
