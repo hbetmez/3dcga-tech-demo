@@ -24,6 +24,9 @@ DISABLE_WARNINGS_POP()
 #include <map>
 #include "light.h"
 #include <stb/stb_image.h>
+#include "terrain_manager.h"
+#include "terrain_tile.h"
+#include "terrain_noise.h"
 
 #define SHADOWTEX_WIDTH 1024
 #define SHADOWTEX_HEIGHT 1024
@@ -75,7 +78,7 @@ public:
                 onKeyPressed(key, mods);
             else if (action == GLFW_RELEASE)
                 onKeyReleased(key, mods);
-            });
+        });
         m_window.registerMouseMoveCallback(std::bind(&Application::onMouseMove, this, std::placeholders::_1));
 
         // scroll callback
@@ -90,7 +93,7 @@ public:
 			onFramebufferSizeChanged(newSize.x, newSize.y);
 			});
 
-        std::string skyboxPath = RESOURCE_ROOT "resources/space/";
+		std::string skyboxPath = RESOURCE_ROOT "resources/space/";
         std::vector<std::string> faces{
             skyboxPath + "right.png",
             skyboxPath + "left.png",
@@ -275,6 +278,21 @@ public:
         // Mesh positions
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // main character position
         m_meshesPositions.push_back(glm::vec3(0, 0, 0)); // Object that moves along the curve
+
+
+        // Terrain Gen
+        m_terrainParams = TerrainParams{};         // defaults from header
+        m_terrainParams.tileSize = 256.0f;
+        m_terrainParams.vertsPerEdge = 129;
+        m_terrainParams.heightScale = 30.0f;
+        m_terrainParams.baseFrequency = 1.0f / 200.0f;
+        m_terrainParams.octaves = 6;
+        m_terrainParams.lacunarity = 2.0f;
+        m_terrainParams.gain = 0.5f;
+        m_terrainParams.seed = 1337u;             // pick any
+
+        m_terrain.setParams(m_terrainParams);
+        m_terrain.setRingRadius(m_tileRing);
     }
 
     void drawMesh(GPUMesh& mesh, const glm::mat4& mvpMatrixLoc, const glm::mat3& normalModelMatrixLoc,
@@ -591,6 +609,24 @@ public:
                 m_lightManager.reset();
             }
 
+            ImGui::Separator();
+            ImGui::Text("Terrain");
+            ImGui::Checkbox("Draw Terrain", &m_drawTerrain);
+            ImGui::SliderInt("Tile Ring Radius", &m_tileRing, 1, 6);
+            if (m_tileRing != m_terrain.ringRadius())
+                m_terrain.setRingRadius(m_tileRing);
+
+            ImGui::SliderFloat("Height Scale", &m_terrainParams.heightScale, 1.0f, 200.0f, "%.1f");
+            ImGui::SliderFloat("Base Freq (1/m)", &m_terrainParams.baseFrequency, 1.0f / 1000.0f, 1.0f / 10.0f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderInt("Octaves", &m_terrainParams.octaves, 1, 10);
+            ImGui::SliderFloat("Lacunarity", &m_terrainParams.lacunarity, 1.5f, 3.0f);
+            ImGui::SliderFloat("Gain", &m_terrainParams.gain, 0.2f, 0.8f);
+            if (ImGui::Button("Apply Terrain Params")) {
+                m_terrain.destroy();
+                m_terrain.setParams(m_terrainParams);
+            }
+
+
             // Display lights in scene
             std::vector<std::string> itemStrings = {};
             for (size_t i = 0; i < m_lightManager.getLights().size(); i++) {
@@ -732,6 +768,11 @@ public:
 
             // *** end SHADOWS
 
+            // Terrain Gen
+            const glm::mat4 viewProj = projectionMatrix * viewMatrix;
+
+            
+            
             // ** for bloom as well
             glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
             glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
@@ -739,6 +780,13 @@ public:
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
 			// ** end for bloom
+
+            if (m_drawTerrain) {
+
+                m_defaultShader.bind();
+
+                m_terrain.updateAndRender(m_trackball.position(), viewProj, m_defaultShader);
+            }
 
             for (const Light& light : m_lightManager.getLights()) {
                 lightPositions.push_back(light.position);
@@ -1220,6 +1268,13 @@ private:
     std::vector<BezierPoint> m_constBezierLookupTable;
     float curveSampleCount = 100.0f;
     float onCurveMoveSpeed = 0.06;
+
+    // Terraing gen
+    TerrainManager m_terrain;
+    TerrainParams  m_terrainParams;
+    bool m_drawTerrain = true;
+    int  m_tileRing = 2; // 2 -> 25 tiles
+
 };
 
 int main()
