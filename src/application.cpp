@@ -534,6 +534,7 @@ public:
                 return glm::mix(prev.t, curr.t, ratio);
             }
         }
+        return 1.0f;
         
     }
 
@@ -553,6 +554,59 @@ public:
             // Put your real-time logic and rendering in here
             m_window.updateInput();
 
+            // character movement update
+            {
+                glm::vec3& pos = m_meshesPositions[0];
+
+                float dt = 0.016f;
+
+                const float turnSpeed = 0.8f; // radians per second
+
+                if (keyA) m_characterYaw += turnSpeed * dt;
+                if (keyD) m_characterYaw -= turnSpeed * dt;
+
+                glm::vec3 characterForward = glm::normalize(
+                    glm::vec3(
+                        sin(m_characterYaw),   // x
+                        0.0f,                  // y
+                        cos(m_characterYaw)    // z
+                    )
+                );
+                
+
+                if (keyW) pos += characterForward * moveSpeed * dt;
+                if (keyS) pos -= characterForward * moveSpeed * dt;
+
+                m_curveControlPoints.resize(m_curveControlPointsBase.size());
+                for (size_t i = 0; i < m_curveControlPointsBase.size(); ++i)
+                {
+                    m_curveControlPoints[i] = pos + m_curveControlPointsBase[i];
+                }
+
+                // Rebuilding curves
+                updateBezierPoints();
+
+                // uploading new curve points to the GPU
+                glBindBuffer(GL_ARRAY_BUFFER, m_curveVBO);
+                glBufferData(
+                    GL_ARRAY_BUFFER,
+                    m_curvePoints.size() * sizeof(glm::vec3),
+                    m_curvePoints.data(),
+                    GL_DYNAMIC_DRAW
+                );
+                glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+                // Update UFO
+                if (m_moveAlongCurve)
+                {
+                    float t = fmod(currentTime * onCurveMoveSpeed, 1.0f);
+                    if (m_constSpeedMoveCurve)
+                        t = lengthToT(t);
+
+                    m_meshesPositions[1] = getOnCurvePoint(t);
+                }
+            }
+
              // 0 = fixed, 1 = mouse trackball, 2 = thirdperson
             const char* cameraModes[] = { "Fixed Camera", "Mouse Trackball", "Third Person", "Top View"};
 
@@ -567,6 +621,7 @@ public:
             ImGui::Checkbox("Walking animation", &isWalking);
             if (isWalking) m_useEmissive = true;
             //else m_useEmissive = false;
+            ImGui::SliderFloat("Character Move Speed", &moveSpeed, 0.0f, 0.2f, "%.3f");
             
             ImGui::Separator();
             ImGui::Text("Materials & Shading");
@@ -660,15 +715,7 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
-            /// use trackball logic to get view and projection matrices based on mouse input
-            if (m_moveAlongCurve) {
-                float t = fmod(currentTime * onCurveMoveSpeed, 1.0f);
-                if (m_constSpeedMoveCurve) {
-                    t = lengthToT(t);
-                }
-                glm::vec3 onCurvePos = getOnCurvePoint(t);
-                m_meshesPositions[1] = onCurvePos;
-            }
+            
 
 			/// use trackball logic to get view and projection matrices based on mouse input
             glm::mat4 projectionMatrix = m_projectionMatrix;
@@ -708,7 +755,7 @@ public:
             }
 
             
-            glm::mat4 modelMatrixCharacter = glm::translate(glm::mat4(1.0f), characterPosition);
+            glm::mat4 modelMatrixCharacter = glm::translate(glm::mat4(1.0f), characterPosition) * glm::rotate(glm::mat4(1.0f), m_characterYaw, glm::vec3(0, 1, 0));
             glm::mat4 modelMatrixCurveObj = glm::translate(glm::mat4(1.0f), objectOnCurvePos);
 
             // Character MVP
@@ -722,6 +769,7 @@ public:
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+            const glm::mat3 normalModelMatrixCharacter = glm::inverseTranspose(glm::mat3(modelMatrixCharacter));
 
             std::vector<glm::vec3> lightPositions;
             std::vector<glm::vec3> lightColors;
@@ -794,7 +842,7 @@ public:
             }
 
             if (!isWalking) walkStartTime = currentTime;
-            CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrix, lightPositions, lightColors, currentTime, lightMVPs);
+            CharacterWalkAnimation(mvpMatrixCharacter, normalModelMatrixCharacter, lightPositions, lightColors, currentTime, lightMVPs);
 
             // Temporary using character instead of drone
 			for (size_t i = 0; i < m_meshesUfo.size(); ++i) {
@@ -868,7 +916,22 @@ public:
     // mods - Any modifier keys pressed, like shift or control
     void onKeyPressed(int key, int mods)
     {
-        //std::cout << "Key pressed: " << key << std::endl;
+        if (key == GLFW_KEY_W) {
+            keyW = true;
+            isWalking = true;
+        }
+        if (key == GLFW_KEY_S) {
+            keyS = true;
+            isWalking = true;
+        }
+        if (key == GLFW_KEY_A)
+        {
+            keyA = true;
+        }
+        if (key == GLFW_KEY_D)
+        {
+            keyD = true;
+        }
     }
 
     // In here you can handle key releases
@@ -876,7 +939,15 @@ public:
     // mods - Any modifier keys pressed, like shift or control
     void onKeyReleased(int key, int mods)
     {
-        //std::cout << "Key released: " << key << std::endl;
+        if (key == GLFW_KEY_W) keyW = false;
+        if (key == GLFW_KEY_S) keyS = false;
+        if (key == GLFW_KEY_A) keyA = false;
+        if (key == GLFW_KEY_D) keyD = false;
+
+        // stop walking if no movement keys held
+        if (!keyW && !keyS) {
+            isWalking = false;
+        }
     }
 
     // If the mouse is moved this function will be called with the x, y screen-coordinates of the mouse
@@ -1241,11 +1312,18 @@ private:
     float m_camDistance = 2.0f;             
     glm::vec2 m_lastMousePos{ 0.0f };
     float sensitivity = 0.01f;
+    float moveSpeed = 0.5f;    
+    float m_characterYaw = 0.0f;
+    glm::vec3 characterForward = glm::vec3(0, 0, 1); // facing towards +Z
+    bool keyW = false;
+    bool keyA = false;
+    bool keyS = false;
+    bool keyD = false;
     
     std::vector<glm::vec3> m_meshesPositions;
 
     // Curve instances
-    std::vector<glm::vec3> m_curveControlPoints =
+    std::vector<glm::vec3> m_curveControlPointsBase =
     {
         {1, 1.8, 1},   // curve 1 p0 
         {1, 0.2, 1},   // curve 1 p1 
@@ -1258,6 +1336,9 @@ private:
         {1, 1.6, -1},   // curve 3 p2 
         {1, 1.8, 1}    // curve 3 p3 
     };
+
+    std::vector<glm::vec3> m_curveControlPoints =
+        m_curveControlPointsBase;
     bool m_showCurve = false;
     bool m_moveAlongCurve = true;
     bool m_constSpeedMoveCurve = false;
