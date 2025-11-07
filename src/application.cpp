@@ -723,7 +723,7 @@ public:
             
 
 			/// use trackball logic to get view and projection matrices based on mouse input
-            glm::mat4 projectionMatrix = m_projectionMatrix;
+            
             glm::mat4 viewMatrix = m_viewMatrix;
 
             glm::vec3 characterPosition = !m_meshesPositions.empty() ? m_meshesPositions[0] : glm::vec3(0.0f);
@@ -732,6 +732,8 @@ public:
 			// window size for resizing
 			glm::ivec2 windowSize = m_window.getWindowSize();
 			float aspectRatio = static_cast<float>(windowSize.x) / static_cast<float>(windowSize.y);
+
+            glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), aspectRatio, 0.1f, 100.0f);
 
             if (cameraMode == 1) {
                 projectionMatrix = m_trackball.projectionMatrix();
