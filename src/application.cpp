@@ -577,10 +577,15 @@ public:
                 if (keyW) pos += characterForward * moveSpeed * dt;
                 if (keyS) pos -= characterForward * moveSpeed * dt;
 
+                float groundY = terrainHeight(pos.x, pos.z, m_terrainParams);
+                float heightDelta = groundY - pos.y;
+                pos.y = groundY;
+
                 m_curveControlPoints.resize(m_curveControlPointsBase.size());
                 for (size_t i = 0; i < m_curveControlPointsBase.size(); ++i)
                 {
                     m_curveControlPoints[i] = pos + m_curveControlPointsBase[i];
+                    m_curveControlPoints[i].y += heightDelta;
                 }
 
                 // Rebuilding curves
