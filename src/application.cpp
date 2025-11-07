@@ -159,6 +159,7 @@ public:
 
         m_skyboxTexture = loadCubemap(faces);
 
+		Texture terrainTex = Texture(RESOURCE_ROOT "resources/terrain/terrain.jpg");
 
         // Character Meshes
         //std::vector<Mesh> cpuMeshes = loadMesh(RESOURCE_ROOT "resources/astronaut.obj");
@@ -798,8 +799,13 @@ public:
 			// ** end for bloom
 
             if (m_drawTerrain) {
-
                 m_defaultShader.bind();
+
+                //glActiveTexture(GL_TEXTURE0);
+                //Texture terrainTex = Texture(RESOURCE_ROOT "resources/terrain/terrain.jpg");
+                //terrainTex.bind(GL_TEXTURE0);
+                //glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                //glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
 
                 m_terrain.updateAndRender(m_trackball.position(), viewProj, m_defaultShader);
             }
@@ -1241,7 +1247,7 @@ private:
 
     bool m_useBloom{ true };
     float m_bloomThreshold{ 1.0f };
-    int m_bloomIterations{ 5 };
+    int m_bloomIterations{ 20 };
     float m_bloomStrength{ 1.0f };
 
     GLuint m_quadVAO, m_quadVBO;

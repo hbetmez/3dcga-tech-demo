@@ -149,6 +149,9 @@ void main()
         // Transform from tangent space to world space
         N = normalize(fragTBN * mapNormal);
     }
+
+    vec3 oldN = N; // for shadows
+
     // L defined per light below
     vec3 V = normalize(cameraPos - fragPosition);
     // H defined per light below
@@ -237,7 +240,7 @@ void main()
                             float shadowMapDepth = texture(texShadow[i], shadowMapCoord).x;
 
                             // high bias if almost parallel, low bias if perpendicular
-                            float bias = max(0.005 * (1.0 - dot(N, L)), 0.001);
+                            float bias = max(0.005 * (1.0 - dot(oldN, L)), 0.001);
                             shadow += fragLightDepth - bias > shadowMapDepth ? 0.0 : 1.0;
                         }
                     }
@@ -248,7 +251,7 @@ void main()
                     float fragLightDepth = fragLightCoord.z;
                     vec2 shadowMapCoord = fragLightCoord.xy;
                     float shadowMapDepth = texture(texShadow[i], shadowMapCoord).x;
-                    float bias = max(0.005 * (1.0 - dot(N, L)), 0.001);
+                    float bias = max(0.005 * (1.0 - dot(oldN, L)), 0.001);
                     shadow = fragLightDepth - bias > shadowMapDepth ? 0.0 : 1.0;
                 }
                 shadow *= dist;
